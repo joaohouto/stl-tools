@@ -3,13 +3,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { getProductBySlug, getDefaultParams } from '@/models/registry';
 import { GeneratedPartMesh, TechnicalSpecReport } from '@/engine/types';
 import { computeModelMetrics } from '@/engine/meshMetrics';
-import ModelViewport from '@/components/viewer/ModelViewport';
 import SchemaForm from '@/components/customizer/SchemaForm';
 import CostSummaryWidget from '@/components/calculator/CostSummaryWidget';
 import { ArrowLeft, FileText, Share2, Check } from 'lucide-react';
+
+const ModelViewport = dynamic(() => import('@/components/viewer/ModelViewport'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[460px] w-full rounded-2xl border border-slate-800 bg-surface-800 flex items-center justify-center text-xs font-mono text-slate-400">
+      Inicializando Motor 3D WebGL...
+    </div>
+  ),
+});
 
 export default function ProductCustomizerPage() {
   const routeParams = useParams<{ slug: string }>();

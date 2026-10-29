@@ -6,6 +6,8 @@ import {
   unionPolygons,
   subtractPolygons,
   translatePolygons,
+  scalePolygons,
+  getBounds2D,
   roundedRectPolygon,
   rectPolygon,
   textToPolygons,
@@ -44,10 +46,10 @@ export const suporteCelularMarcaModule: ProductModule = {
       },
       {
         name: 'texto',
-        label: 'Texto / Nome da Marca',
+        label: 'Texto / Nome da Marca (Aceita 2 Linhas)',
         type: 'string',
         default: 'MINHA MARCA',
-        maxLength: 20,
+        maxLength: 55,
         group: 'Personalização',
       },
       {
@@ -260,8 +262,14 @@ export const suporteCelularMarcaModule: ProductModule = {
 
     // Build 2D artwork (text + optional logo) in local backrest plane
     const artPolysList: Polygons2D[] = [];
+    const maxArtWidth = largura - 10;
     if (texto.trim()) {
-      const tPoly = await textToPolygons(texto, fonte, alturaTexto);
+      let tPoly = await textToPolygons(texto, fonte, alturaTexto);
+      const tb = getBounds2D(tPoly);
+      if (tb.width > maxArtWidth && tb.width > 0) {
+        const s = maxArtWidth / tb.width;
+        tPoly = scalePolygons(tPoly, s, s);
+      }
       const yPos = incluirIcone ? -tamanhoLogo * 0.58 : 0;
       artPolysList.push(translatePolygons(tPoly, 0, yPos));
     }

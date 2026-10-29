@@ -5,6 +5,8 @@ import {
   unionPolygons,
   subtractPolygons,
   translatePolygons,
+  scalePolygons,
+  getBounds2D,
   roundedRectPolygon,
   circlePolygon,
   textToPolygons,
@@ -42,7 +44,7 @@ export const placaPersonalizadaModule: ProductModule = {
         label: 'Título Principal',
         type: 'string',
         default: 'PAGUE COM PIX',
-        maxLength: 20,
+        maxLength: 42,
         group: 'Conteúdo',
       },
       {
@@ -50,7 +52,7 @@ export const placaPersonalizadaModule: ProductModule = {
         label: 'Subtítulo / Chave / Nome',
         type: 'string',
         default: 'Aponte a Camera',
-        maxLength: 24,
+        maxLength: 42,
         group: 'Conteúdo',
       },
       {
@@ -204,29 +206,43 @@ export const placaPersonalizadaModule: ProductModule = {
       relevoList.push(subtractPolygons(outerBorder, innerBorder));
     }
 
+    const maxTextWidth = largura - (moldura ? 16 : 10);
+    const fitToWidth = (polys: Polygons2D, maxW: number): Polygons2D => {
+      const b = getBounds2D(polys);
+      if (b.width > maxW && b.width > 0) {
+        const s = maxW / b.width;
+        return scalePolygons(polys, s, s);
+      }
+      return polys;
+    };
+
     if (modo === 'placa_qr') {
       const qrSize = Math.min(largura, altura) * 0.54;
       const qr2D = qrToPolygons(qrConteudo, qrSize);
       relevoList.push(translatePolygons(qr2D, 0, -altura * 0.04));
 
       if (titulo.trim()) {
-        const tPolys = await textToPolygons(titulo, fonte, Math.min(12, altura * 0.1));
+        const rawT = await textToPolygons(titulo, fonte, Math.min(12, altura * 0.1));
+        const tPolys = fitToWidth(rawT, maxTextWidth);
         relevoList.push(translatePolygons(tPolys, 0, altura * 0.34));
       }
       if (subtitulo.trim()) {
-        const sPolys = await textToPolygons(subtitulo, fonte, Math.min(8.5, altura * 0.07));
+        const rawS = await textToPolygons(subtitulo, fonte, Math.min(8.5, altura * 0.07));
+        const sPolys = fitToWidth(rawS, maxTextWidth);
         relevoList.push(translatePolygons(sPolys, 0, -altura * 0.37));
       }
     } else {
       if (titulo.trim()) {
         const titleH = subtitulo.trim() ? altura * 0.28 : altura * 0.36;
-        const tPolys = await textToPolygons(titulo, fonte, Math.min(28, titleH));
-        const yOff = subtitulo.trim() ? altura * 0.12 : 0;
+        const rawT = await textToPolygons(titulo, fonte, Math.min(28, titleH));
+        const tPolys = fitToWidth(rawT, maxTextWidth);
+        const yOff = subtitulo.trim() ? -altura * 0.14 : 0;
         relevoList.push(translatePolygons(tPolys, 0, yOff));
       }
       if (subtitulo.trim()) {
-        const sPolys = await textToPolygons(subtitulo, fonte, Math.min(16, altura * 0.16));
-        relevoList.push(translatePolygons(sPolys, 0, -altura * 0.18));
+        const rawS = await textToPolygons(subtitulo, fonte, Math.min(16, altura * 0.16));
+        const sPolys = fitToWidth(rawS, maxTextWidth * 0.85);
+        relevoList.push(translatePolygons(sPolys, 0, altura * 0.18));
       }
     }
 

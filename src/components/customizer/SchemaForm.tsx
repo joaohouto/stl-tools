@@ -175,14 +175,25 @@ export default function SchemaForm({
                         </span>
                       )}
                     </div>
-                    <input
-                      type="text"
-                      value={String(val)}
-                      maxLength={p.maxLength}
-                      placeholder={p.placeholder}
-                      onChange={(e) => onChange(p.name, e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-surface-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-brand-500"
-                    />
+                    {(p.maxLength ?? 20) >= 35 ? (
+                      <textarea
+                        rows={2}
+                        value={String(val)}
+                        maxLength={p.maxLength}
+                        placeholder={p.placeholder || 'Digite 1 ou 2 linhas...'}
+                        onChange={(e) => onChange(p.name, e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-surface-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-brand-500 resize-y"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={String(val)}
+                        maxLength={p.maxLength}
+                        placeholder={p.placeholder}
+                        onChange={(e) => onChange(p.name, e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-surface-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-brand-500"
+                      />
+                    )}
                   </div>
                 );
               }

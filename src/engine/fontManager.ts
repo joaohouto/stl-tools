@@ -25,11 +25,21 @@ export async function loadFont(fontId: string): Promise<opentype.Font> {
     return fontCache.get(found.id)!;
   }
 
-  const res = await fetch(found.file);
-  if (!res.ok) {
-    throw new Error(`Falha ao carregar a fonte ${found.name}`);
+  let buffer: ArrayBuffer;
+  if (typeof window === 'undefined') {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const filePath = path.join(process.cwd(), 'public', found.file);
+    const nodeBuf = await fs.readFile(filePath);
+    buffer = nodeBuf.buffer.slice(nodeBuf.byteOffset, nodeBuf.byteOffset + nodeBuf.byteLength);
+  } else {
+    const res = await fetch(found.file);
+    if (!res.ok) {
+      throw new Error(`Falha ao carregar a fonte ${found.name}`);
+    }
+    buffer = await res.arrayBuffer();
   }
-  const buffer = await res.arrayBuffer();
+
   const font = opentype.parse(buffer);
   fontCache.set(found.id, font);
   return font;

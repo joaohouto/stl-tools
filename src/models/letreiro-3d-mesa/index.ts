@@ -24,10 +24,10 @@ export const letreiro3dMesaModule: ProductModule = {
     params: [
       {
         name: 'texto',
-        label: 'Nome / Frase',
+        label: 'Nome / Frase (Suporta 2 Linhas)',
         type: 'string',
         default: 'Parabéns',
-        maxLength: 18,
+        maxLength: 55,
         group: 'Texto',
       },
       {

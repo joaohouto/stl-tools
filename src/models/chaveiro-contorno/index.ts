@@ -29,10 +29,10 @@ export const chaveiroContornoModule: ProductModule = {
     params: [
       {
         name: 'texto',
-        label: 'Nome / Texto do Chaveiro',
+        label: 'Nome / Texto do Chaveiro (Suporta 2 Linhas)',
         type: 'string',
         default: 'Maria',
-        maxLength: 18,
+        maxLength: 55,
         group: 'Texto e Fonte',
       },
       {

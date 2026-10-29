@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useMemo, useRef } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Grid, Center, ContactShadows } from '@react-three/drei';
+import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GeneratedPartMesh, MeshMetrics } from '@/engine/types';
-import { Download, Layers, Box, Maximize2, Sparkles } from 'lucide-react';
+import { Download, Layers, Box, Maximize2, Sparkles, RotateCcw } from 'lucide-react';
 import {
   exportMergedSTL,
   exportPartsZIP,
@@ -21,27 +20,6 @@ interface ModelViewportProps {
   isGenerating: boolean;
 }
 
-function SceneContent({ parts }: { parts: GeneratedPartMesh[] }) {
-  // Rotate -90 deg on X so Z-up CAD coordinates become Y-up in Three.js camera space
-  return (
-    <group rotation={[-Math.PI / 2, 0, 0]}>
-      <Center top>
-        <group>
-          {parts.map((part) => (
-            <mesh key={part.name} geometry={part.geometry} castShadow receiveShadow>
-              <meshStandardMaterial
-                color={part.color}
-                roughness={0.35}
-                metalness={0.08}
-              />
-            </mesh>
-          ))}
-        </group>
-      </Center>
-    </group>
-  );
-}
-
 export default function ModelViewport({
   modelName,
   modelSlug,
@@ -49,6 +27,180 @@ export default function ModelViewport({
   metrics,
   isGenerating,
 }: ModelViewportProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const sceneRef = useRef<{
+    scene: THREE.Scene;
+    camera: THREE.PerspectiveCamera;
+    renderer: THREE.WebGLRenderer;
+    controls: OrbitControls;
+    partsGroup: THREE.Group;
+  } | null>(null);
+
+  // Initialize Three.js Scene, Camera, Renderer, Lights & 256x256mm Print Bed Grid once
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const width = container.clientWidth || 640;
+    const height = container.clientHeight || 440;
+
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(38, width / height, 1, 2500);
+    camera.position.set(0, 130, 185);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+
+    container.innerHTML = '';
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 25;
+    controls.maxDistance = 600;
+    controls.target.set(0, 18, 0);
+
+    // Studio Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.45);
+    keyLight.position.set(120, 200, 140);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 1024;
+    keyLight.shadow.mapSize.height = 1024;
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.65);
+    fillLight.position.set(-130, 100, -110);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.PointLight(0x16d8aa, 0.6, 500);
+    rimLight.position.set(0, 140, -120);
+    scene.add(rimLight);
+
+    // 256x256mm Print Bed Plate & Grid (Bambu Lab style)
+    const bedPlateGeom = new THREE.PlaneGeometry(256, 256);
+    const bedPlateMat = new THREE.MeshStandardMaterial({
+      color: 0x0f1623,
+      roughness: 0.85,
+      metalness: 0.1,
+    });
+    const bedPlate = new THREE.Mesh(bedPlateGeom, bedPlateMat);
+    bedPlate.rotation.x = -Math.PI / 2;
+    bedPlate.position.y = -0.2;
+    bedPlate.receiveShadow = true;
+    scene.add(bedPlate);
+
+    const majorGrid = new THREE.GridHelper(256, 25, 0x16d8aa, 0x1e293b);
+    majorGrid.position.y = 0;
+    scene.add(majorGrid);
+
+    // Group that holds generated CAD parts (rotated -90 deg around X so CAD +Z is Up +Y)
+    const partsGroup = new THREE.Group();
+    partsGroup.rotation.x = -Math.PI / 2;
+    scene.add(partsGroup);
+
+    sceneRef.current = { scene, camera, renderer, controls, partsGroup };
+
+    let frameId = 0;
+    const animate = () => {
+      frameId = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    const handleResize = () => {
+      if (!container) return;
+      const w = container.clientWidth || 640;
+      const h = container.clientHeight || 440;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    };
+
+    const resizeObserver = new ResizeObserver(handleResize);
+    resizeObserver.observe(container);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+      controls.dispose();
+      renderer.dispose();
+      sceneRef.current = null;
+    };
+  }, []);
+
+  // Update 3D meshes whenever `parts` change
+  useEffect(() => {
+    const ctx = sceneRef.current;
+    if (!ctx) return;
+
+    const { partsGroup } = ctx;
+
+    // Clear previous meshes & materials
+    while (partsGroup.children.length > 0) {
+      const child = partsGroup.children[0] as THREE.Mesh;
+      partsGroup.remove(child);
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach((m) => m.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+    }
+
+    if (parts.length === 0) return;
+
+    // Compute overall CAD bounding box so we center X/Y at 0 and sit Zmin on the bed (Z=0)
+    const overallBox = new THREE.Box3();
+    for (const part of parts) {
+      if (!part.geometry.boundingBox) {
+        part.geometry.computeBoundingBox();
+      }
+      if (part.geometry.boundingBox) {
+        overallBox.union(part.geometry.boundingBox);
+      }
+    }
+
+    const center = new THREE.Vector3();
+    overallBox.getCenter(center);
+    const minZ = isFinite(overallBox.min.z) ? overallBox.min.z : 0;
+
+    for (const part of parts) {
+      const mat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(part.color || '#16d8aa'),
+        roughness: 0.34,
+        metalness: 0.08,
+        side: THREE.DoubleSide,
+      });
+
+      const mesh = new THREE.Mesh(part.geometry, mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      // Center in CAD X/Y and place bottom of assembly at Z = 0
+      mesh.position.set(-center.x, -center.y, -minZ);
+      partsGroup.add(mesh);
+    }
+  }, [parts]);
+
+  const handleResetCamera = () => {
+    const ctx = sceneRef.current;
+    if (!ctx) return;
+    ctx.camera.position.set(0, 130, 185);
+    ctx.controls.target.set(0, 18, 0);
+    ctx.controls.update();
+  };
+
   const handleDownloadSTL = () => {
     const bytes = exportMergedSTL(parts, modelSlug);
     triggerBrowserDownload(bytes, `${modelSlug}.stl`, 'model/stl');
@@ -81,7 +233,7 @@ export default function ModelViewport({
           </span>
         </div>
 
-        <div className="flex items-center gap-3 text-xs font-mono text-slate-400">
+        <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
           <span className="flex items-center gap-1 bg-slate-800/90 px-2.5 py-1 rounded-md border border-slate-700/70">
             <Maximize2 className="w-3.5 h-3.5 text-brand-400" />
             {x.toFixed(1)} × {y.toFixed(1)} × {z.toFixed(1)} mm
@@ -90,54 +242,20 @@ export default function ModelViewport({
             <Box className="w-3.5 h-3.5 text-brand-400" />
             {metrics.volumeCm3.toFixed(1)} cm³
           </span>
+          <button
+            type="button"
+            onClick={handleResetCamera}
+            title="Centralizar Câmera 3D"
+            className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
-      {/* 3D Canvas */}
+      {/* 3D WebGL Viewport Container */}
       <div className="relative h-[400px] sm:h-[460px] w-full bg-gradient-to-b from-[#0d121b] to-[#151d2a]">
-        <Canvas
-          shadows
-          camera={{ position: [0, 115, 165], fov: 38, near: 1, far: 2000 }}
-        >
-          <ambientLight intensity={0.7} />
-          <directionalLight
-            position={[120, 180, 120]}
-            intensity={1.35}
-            castShadow
-          />
-          <directionalLight position={[-120, 90, -100]} intensity={0.55} />
-          <pointLight position={[0, 140, -80]} intensity={0.4} color="#16d8aa" />
-
-          {parts.length > 0 && <SceneContent parts={parts} />}
-
-          {/* Bambu Lab 256x256mm Print Bed Grid */}
-          <Grid
-            position={[0, -0.05, 0]}
-            args={[256, 256]}
-            cellSize={10}
-            cellThickness={0.6}
-            cellColor="#1e293b"
-            sectionSize={50}
-            sectionThickness={1.2}
-            sectionColor="#16d8aa"
-            fadeDistance={420}
-            fadeStrength={1}
-          />
-          <ContactShadows
-            position={[0, -0.02, 0]}
-            opacity={0.45}
-            scale={240}
-            blur={2.2}
-            far={80}
-          />
-          <OrbitControls
-            makeDefault
-            enableDamping
-            dampingFactor={0.08}
-            minDistance={30}
-            maxDistance={500}
-          />
-        </Canvas>
+        <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
         {/* Legend of Colored Parts */}
         <div className="absolute bottom-3 left-3 flex flex-wrap gap-1.5 pointer-events-none">
