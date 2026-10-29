@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import React, { useState, useMemo } from 'react';
-import Link from 'next/link';
-import { PRODUCT_MODULES, CATEGORY_LABELS } from '@/models/registry';
-import { ProductCategory } from '@/engine/types';
+import React, { useState, useMemo } from "react";
+import Link from "next/link";
+import { PRODUCT_MODULES, CATEGORY_LABELS } from "@/models/registry";
+import { ProductCategory } from "@/engine/types";
 import {
   Search,
   Sparkles,
@@ -17,7 +17,7 @@ import {
   Calculator,
   ArrowRight,
   Layers,
-} from 'lucide-react';
+} from "lucide-react";
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   all: <Layers className="w-4 h-4" />,
@@ -31,14 +31,16 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
 };
 
 export default function HomePage() {
-  const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'all'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<
+    ProductCategory | "all"
+  >("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const filteredProducts = useMemo(() => {
     return PRODUCT_MODULES.filter((mod) => {
       const s = mod.schema;
       const matchesCat =
-        selectedCategory === 'all' || s.categories.includes(selectedCategory);
+        selectedCategory === "all" || s.categories.includes(selectedCategory);
       const q = searchQuery.trim().toLowerCase();
       const matchesSearch =
         !q ||
@@ -51,67 +53,30 @@ export default function HomePage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-10">
-      {/* Hero Banner */}
-      <section className="relative rounded-3xl border border-slate-800 bg-gradient-to-br from-surface-800 via-surface-900 to-[#0d1f22] p-6 sm:p-10 overflow-hidden shadow-2xl">
-        <div className="max-w-3xl space-y-4 relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/15 border border-brand-500/30 text-brand-300 text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5 text-brand-400" />
-            <span>Gerador de Produtos 3D Paramétricos + Precificação Automática</span>
-          </div>
-
-          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-100 leading-tight">
-            Personalize produtos 3D e baixe o{' '}
-            <span className="text-brand-400">STL ou 3MF</span> na hora.
-          </h1>
-
-          <p className="text-sm sm:text-base text-slate-300 max-w-2xl leading-relaxed">
-            Suportes de celular com sua marca, chaveiros contornados, letras com nome sem cola,
-            cortadores de biscoito, placas Pix QR Code e letra-caixa LED — todos com{' '}
-            <strong className="text-slate-100">cálculo de peso, tempo e preço de venda em tempo real</strong>.
-          </p>
-
-          <div className="pt-2 flex flex-wrap items-center gap-3">
-            <Link
-              href="/models/suporte-celular-marca"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-brand-500 hover:bg-brand-400 text-slate-950 transition shadow-lg shadow-brand-500/20"
-            >
-              <Smartphone className="w-4 h-4" />
-              Criar Suporte de Celular Personalizado
-            </Link>
-
-            <Link
-              href="/calculadora"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-800/90 hover:bg-slate-700 text-slate-100 border border-slate-700 transition"
-            >
-              <Calculator className="w-4 h-4 text-brand-400" />
-              Calculadora de Custos 3D
-            </Link>
-          </div>
-        </div>
-      </section>
-
       {/* Filters & Search Bar */}
       <section className="space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Category Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0">
-            {(Object.keys(CATEGORY_LABELS) as (ProductCategory | 'all')[]).map((cat) => {
-              const active = selectedCategory === cat;
-              return (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border transition ${
-                    active
-                      ? 'bg-brand-500 text-slate-950 border-brand-400 shadow-md shadow-brand-500/15'
-                      : 'bg-surface-800 text-slate-300 border-slate-800 hover:border-slate-700'
-                  }`}
-                >
-                  {CATEGORY_ICONS[cat]}
-                  <span>{CATEGORY_LABELS[cat]}</span>
-                </button>
-              );
-            })}
+            {(Object.keys(CATEGORY_LABELS) as (ProductCategory | "all")[]).map(
+              (cat) => {
+                const active = selectedCategory === cat;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border transition ${
+                      active
+                        ? "bg-brand-500 text-slate-950 border-brand-400 shadow-md shadow-brand-500/15"
+                        : "bg-surface-800 text-slate-300 border-slate-800 hover:border-slate-700"
+                    }`}
+                  >
+                    {CATEGORY_ICONS[cat]}
+                    <span>{CATEGORY_LABELS[cat]}</span>
+                  </button>
+                );
+              },
+            )}
           </div>
 
           {/* Search Input */}
@@ -132,7 +97,7 @@ export default function HomePage() {
           {filteredProducts.map((mod) => {
             const { schema } = mod;
             const defaultColors = schema.params
-              .filter((p) => p.type === 'color')
+              .filter((p) => p.type === "color")
               .map((p) => String(p.default));
 
             return (
@@ -160,7 +125,8 @@ export default function HomePage() {
                     {/* Stylized Parametric Icon + Swatches */}
                     <div className="flex items-end justify-between">
                       <div className="text-xs font-mono text-slate-400">
-                        {schema.params.filter((p) => p.type !== 'color').length} parâmetros ajustáveis
+                        {schema.params.filter((p) => p.type !== "color").length}{" "}
+                        parâmetros ajustáveis
                       </div>
                       <div className="flex items-center gap-1">
                         {defaultColors.map((col, idx) => (
@@ -189,7 +155,8 @@ export default function HomePage() {
                 {/* Card Footer */}
                 <div className="px-5 py-3.5 border-t border-slate-800/80 bg-surface-900/40 flex items-center justify-between text-xs">
                   <span className="text-slate-400 font-mono">
-                    {schema.parts.length} {schema.parts.length === 1 ? 'peça' : 'peças (Multicor)'}
+                    {schema.parts.length}{" "}
+                    {schema.parts.length === 1 ? "peça" : "peças (Multicor)"}
                   </span>
                   <span className="inline-flex items-center gap-1 font-semibold text-brand-400 group-hover:translate-x-0.5 transition">
                     Personalizar 3D <ArrowRight className="w-3.5 h-3.5" />

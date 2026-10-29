@@ -1,9 +1,50 @@
 import * as THREE from 'three';
 import earcut from 'earcut';
-import { Clipper, FillRule, JoinType, EndType, Path64, Paths64, Point64 } from 'clipper2-js';
+import {
+  Clipper,
+  ClipperOffset,
+  EndType,
+  FillRule,
+  JoinType,
+  Path64,
+  Paths64,
+  Point64,
+} from 'clipper2-js';
 import opentype from 'opentype.js';
 import QRCode from 'qrcode';
 import { loadFont } from './fontManager';
+
+// ============================================================================
+// UPSTREAM CLIPPER2-JS BUG FIX
+// In clipper2-js@1.2.4, `ClipperOffset.prototype.offsetPolygon` and `offsetOpenPath`
+// translated C#'s `ref int k` parameter by value (`const prev = cnt - 1`) without
+// advancing `prev = i` after `this.offsetPoint(group, path, i, prev)`.
+// That caused every polygon offset (`InflatePaths`) to compare vertex `i` against `cnt - 1`,
+// producing severe sawtooth/spiky artifacts on curves. Patching the prototype fixes it globally.
+// ============================================================================
+(ClipperOffset.prototype as unknown as Record<string, unknown>).offsetPolygon = function (
+  this: {
+    _groupDelta: number;
+    offsetPoint: (group: unknown, path: Path64, i: number, prev: number) => void;
+  },
+  group: { outPath: Path64; outPaths: Paths64 },
+  path: Path64
+) {
+  const area = Clipper.area(path);
+  if (area < 0 !== this._groupDelta < 0) {
+    const rect = Clipper.getBounds(path);
+    const offsetMinDim = Math.abs(this._groupDelta) * 2;
+    if (offsetMinDim > rect.width || offsetMinDim > rect.height) return;
+  }
+  group.outPath = new Path64();
+  const cnt = path.length;
+  let prev = cnt - 1;
+  for (let i = 0; i < cnt; i++) {
+    this.offsetPoint(group, path, i, prev);
+    prev = i;
+  }
+  group.outPaths.push(group.outPath);
+};
 
 export type Point2D = [number, number];
 export type PolygonRing = Point2D[];
@@ -73,7 +114,7 @@ export function normalizePolygons(polys: Polygons2D, fillRule: FillRule = FillRu
 }
 
 /**
- * Offset polygons by deltaMm (+ expands, - shrinks)
+ * Smooth, mathematically exact 2D Polygon Offset Engine using ClipperOffset (with patched offsetPolygon)
  */
 export function offsetPolygons(
   polys: Polygons2D,
@@ -81,20 +122,23 @@ export function offsetPolygons(
   join: 'round' | 'miter' | 'square' = 'round'
 ): Polygons2D {
   if (polys.length === 0) return [];
-  if (Math.abs(deltaMm) < 1e-4) return normalizePolygons(polys);
+  const normalized = normalizePolygons(polys, FillRule.NonZero);
+  if (Math.abs(deltaMm) < 1e-4) return normalized;
 
-  const joinType =
-    join === 'round' ? JoinType.Round : join === 'miter' ? JoinType.Miter : JoinType.Square;
-  const subj = toPaths64(polys);
-  const inflated = Clipper.InflatePaths(
-    subj,
-    deltaMm * CLIPPER_SCALE,
-    joinType,
-    EndType.Polygon,
-    2.0
-  );
-  const cleaned = Clipper.Union(inflated, new Paths64(), FillRule.NonZero);
-  return fromPaths64(cleaned);
+  const subj = toPaths64(normalized);
+  const jt =
+    join === 'round'
+      ? JoinType.Round
+      : join === 'miter'
+      ? JoinType.Miter
+      : JoinType.Square;
+
+  // ArcTolerance = 8.0 on scale 1000 => 0.008mm chord accuracy (ultra smooth, zero jaggedness)
+  const co = new ClipperOffset(2.0, 8.0);
+  co.addPaths(subj, jt, EndType.Polygon);
+  const sol = new Paths64();
+  co.execute(Math.round(deltaMm * CLIPPER_SCALE), sol);
+  return fromPaths64(sol);
 }
 
 export function unionPolygons(...polyList: Polygons2D[]): Polygons2D {
@@ -215,10 +259,10 @@ export function area2D(polys: Polygons2D): number {
 }
 
 // ============================================================================
-// 2D PRIMITIVES & SHAPES GALLERY
+// 2D PRIMITIVES & SHAPES GALLERY (CLEAN GEOMETRIC CONTOURS)
 // ============================================================================
 
-export function circlePolygon(radius: number, cx = 0, cy = 0, segments = 48): Polygons2D {
+export function circlePolygon(radius: number, cx = 0, cy = 0, segments = 64): Polygons2D {
   const ring: PolygonRing = [];
   for (let i = 0; i < segments; i++) {
     const theta = (i / segments) * Math.PI * 2;
@@ -246,7 +290,7 @@ export function roundedRectPolygon(
   radius: number,
   cx = 0,
   cy = 0,
-  cornerSegments = 12
+  cornerSegments = 16
 ): Polygons2D {
   const r = Math.max(0, Math.min(radius, width * 0.5 - 0.01, height * 0.5 - 0.01));
   if (r < 0.05) return rectPolygon(width, height, cx, cy);
@@ -268,6 +312,71 @@ export function roundedRectPolygon(
     }
   }
   return [ring];
+}
+
+/**
+ * Generates any regular or custom polygon with smoothly filleted (rounded) corners
+ */
+export function roundedPolygonFromVertices(
+  vertices: Point2D[],
+  cornerRadius: number
+): Polygons2D {
+  if (cornerRadius <= 0.05) return normalizePolygons([vertices]);
+  const shrunk = offsetPolygons([vertices], -cornerRadius, 'miter');
+  if (shrunk.length === 0) return normalizePolygons([vertices]);
+  return offsetPolygons(shrunk, cornerRadius, 'round');
+}
+
+/**
+ * Attaches a reinforced pendant/keyring loop ('top' or 'left') that automatically detects
+ * the exact local boundary of any shape (bone central shaft, heart cleft, cursive letters, etc.)
+ * and bridges into the solid interior so it never floats or detaches.
+ */
+export function attachKeyringTab(
+  basePolys: Polygons2D,
+  position: 'top' | 'left',
+  holeDiameterMm: number,
+  wallThicknessMm = 2.6
+): Polygons2D {
+  if (basePolys.length === 0) return basePolys;
+  const innerR = Math.max(1.0, holeDiameterMm * 0.5);
+  const outerR = innerR + Math.max(1.8, wallThicknessMm);
+  const baseBounds = getBounds2D(basePolys);
+
+  if (position === 'top') {
+    const tabX = 0;
+    const vStrip = intersectPolygons(basePolys, rectPolygon(outerR * 0.8, 2000, tabX, 0));
+    const sb = vStrip.length > 0 ? getBounds2D(vStrip) : baseBounds;
+    const tabY = sb.maxY + outerR * 0.55;
+    const anchorY = sb.centerY;
+    const neckH = Math.max(outerR, tabY - anchorY);
+    // Stadium/arch tab with full width 2 * outerR so it never overhangs or traps a pocket on concave tops
+    const neck = rectPolygon(outerR * 2.0, neckH, tabX, anchorY + neckH * 0.5);
+    const outerLoop = circlePolygon(outerR, tabX, tabY, 48);
+    const innerHole = circlePolygon(innerR, tabX, tabY, 40);
+    const tabSolid = unionPolygons(neck, outerLoop);
+    return subtractPolygons(unionPolygons(basePolys, tabSolid), innerHole);
+  } else {
+    // 'left': find the vertical center of the leftmost region of the contour
+    const leftSlice = intersectPolygons(
+      basePolys,
+      rectPolygon(outerR * 1.8, 2000, baseBounds.minX + outerR * 0.9, 0)
+    );
+    const sliceBounds = leftSlice.length > 0 ? getBounds2D(leftSlice) : baseBounds;
+    const tabY = sliceBounds.centerY;
+
+    const hStrip = intersectPolygons(basePolys, rectPolygon(2000, outerR * 0.8, 0, tabY));
+    const sb = hStrip.length > 0 ? getBounds2D(hStrip) : baseBounds;
+    const tabX = sb.minX - outerR * 0.55;
+    const anchorX = Math.min(sb.centerX, sb.minX + outerR * 1.4);
+    const neckW = Math.max(outerR, anchorX - tabX);
+    // Full height 2 * outerR stadium bridge so it blends flush into the contour
+    const neck = rectPolygon(neckW, outerR * 2.0, tabX + neckW * 0.5, tabY);
+    const outerLoop = circlePolygon(outerR, tabX, tabY, 48);
+    const innerHole = circlePolygon(innerR, tabX, tabY, 40);
+    const tabSolid = unionPolygons(neck, outerLoop);
+    return subtractPolygons(unionPolygons(basePolys, tabSolid), innerHole);
+  }
 }
 
 export interface ShapePreset {
@@ -294,111 +403,118 @@ export function shapeGalleryToPolygons(shapeId: string, sizeMm: number): Polygon
   const r = sizeMm * 0.5;
   switch (shapeId) {
     case 'circulo':
-      return circlePolygon(r, 0, 0, 64);
+      return circlePolygon(r, 0, 0, 72);
 
-    case 'hexagono':
-      return offsetPolygons(circlePolygon(r * 0.92, 0, 0, 6), r * 0.08, 'round');
+    case 'hexagono': {
+      // Flat-topped or pointy-topped regular hexagon with smooth rounded corners
+      const hexVerts: Point2D[] = [];
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+        hexVerts.push([Math.cos(a) * r, Math.sin(a) * r]);
+      }
+      return fitPolygonsToSize(roundedPolygonFromVertices(hexVerts, sizeMm * 0.06), sizeMm);
+    }
 
     case 'estrela': {
       const ring: PolygonRing = [];
       const points = 5;
       const outerR = r;
-      const innerR = r * 0.44;
+      const innerR = r * 0.46;
       for (let i = 0; i < points * 2; i++) {
         const rad = i % 2 === 0 ? outerR : innerR;
         const a = (i / (points * 2)) * Math.PI * 2 + Math.PI * 0.5;
         ring.push([Math.cos(a) * rad, Math.sin(a) * rad]);
       }
-      return offsetPolygons([ring], sizeMm * 0.03, 'round');
+      return fitPolygonsToSize(
+        offsetPolygons(offsetPolygons([ring], -sizeMm * 0.025, 'round'), sizeMm * 0.045, 'round'),
+        sizeMm
+      );
     }
 
     case 'coracao': {
-      const ring: PolygonRing = [];
-      const steps = 80;
-      for (let i = 0; i < steps; i++) {
-        const t = (i / steps) * Math.PI * 2;
-        const x = 16 * Math.pow(Math.sin(t), 3);
-        const y =
-          13 * Math.cos(t) -
-          5 * Math.cos(2 * t) -
-          2 * Math.cos(3 * t) -
-          Math.cos(4 * t);
-        ring.push([x, y]);
-      }
-      return fitPolygonsToSize(normalizePolygons([ring]), sizeMm);
+      // Simple, plump, tangent geometric heart: exact square + 2 tangent semicircular lobes,
+      // rotated -45 deg with a softly rounded bottom tip (no sharp needle point!)
+      const s = sizeMm * 0.52;
+      const baseSquare = rectPolygon(s, s, 0, 0);
+      const lobeL = circlePolygon(s * 0.5, -s * 0.5, 0, 56);
+      const lobeR = circlePolygon(s * 0.5, 0, s * 0.5, 56);
+      const rawHeart = rotatePolygons(unionPolygons(baseSquare, lobeL, lobeR), -45);
+      const roundedTip = offsetPolygons(
+        offsetPolygons(rawHeart, -s * 0.14, 'round'),
+        s * 0.14,
+        'round'
+      );
+      return fitPolygonsToSize(roundedTip, sizeMm);
     }
 
     case 'osso': {
-      const bar = roundedRectPolygon(sizeMm * 0.65, sizeMm * 0.28, sizeMm * 0.06);
-      const kx = sizeMm * 0.31;
-      const ky = sizeMm * 0.13;
-      const kr = sizeMm * 0.16;
-      const c1 = circlePolygon(kr, -kx, ky, 32);
-      const c2 = circlePolygon(kr, -kx, -ky, 32);
-      const c3 = circlePolygon(kr, kx, ky, 32);
-      const c4 = circlePolygon(kr, kx, -ky, 32);
-      return fitPolygonsToSize(unionPolygons(bar, c1, c2, c3, c4), sizeMm);
+      const bar = roundedRectPolygon(sizeMm * 0.64, sizeMm * 0.30, sizeMm * 0.06);
+      const kx = sizeMm * 0.30;
+      const ky = sizeMm * 0.135;
+      const kr = sizeMm * 0.165;
+      const c1 = circlePolygon(kr, -kx, ky, 40);
+      const c2 = circlePolygon(kr, -kx, -ky, 40);
+      const c3 = circlePolygon(kr, kx, ky, 40);
+      const c4 = circlePolygon(kr, kx, -ky, 40);
+      const merged = unionPolygons(bar, c1, c2, c3, c4);
+      // Smooth inner armpits of the bone slightly
+      const smoothed = offsetPolygons(offsetPolygons(merged, 1.2, 'round'), -1.2, 'round');
+      return fitPolygonsToSize(smoothed, sizeMm);
     }
 
     case 'escudo': {
-      const ring: PolygonRing = [
-        [-r * 0.8, r * 0.85],
-        [0, r * 0.95],
-        [r * 0.8, r * 0.85],
-        [r * 0.8, 0],
-        [r * 0.5, -r * 0.55],
-        [0, -r * 0.95],
-        [-r * 0.5, -r * 0.55],
-        [-r * 0.8, 0],
-      ];
-      return fitPolygonsToSize(offsetPolygons([ring], sizeMm * 0.05, 'round'), sizeMm);
+      // Classic heraldic crest shield with smooth curved sides and gently rounded bottom tip
+      const svgShield = `<svg viewBox="0 0 100 100"><path d="M 50 6 L 88 18 L 88 48 C 88 73 70 88 50 96 C 30 88 12 73 12 48 L 12 18 Z"/></svg>`;
+      const poly = svgToPolygons(svgShield, sizeMm);
+      return fitPolygonsToSize(
+        offsetPolygons(offsetPolygons(poly, -sizeMm * 0.03, 'round'), sizeMm * 0.03, 'round'),
+        sizeMm
+      );
     }
 
     case 'patinha': {
-      const pad = offsetPolygons(
-        [
-          [
-            [-r * 0.45, -r * 0.45],
-            [r * 0.45, -r * 0.45],
-            [r * 0.25, r * 0.05],
-            [-r * 0.25, r * 0.05],
-          ],
-        ],
-        r * 0.18,
-        'round'
+      const mainPad = unionPolygons(
+        circlePolygon(r * 0.34, 0, -r * 0.22, 40),
+        circlePolygon(r * 0.25, -r * 0.20, -r * 0.32, 36),
+        circlePolygon(r * 0.25, r * 0.20, -r * 0.32, 36)
       );
-      const t1 = circlePolygon(r * 0.18, -r * 0.48, r * 0.28, 24);
-      const t2 = circlePolygon(r * 0.20, -r * 0.17, r * 0.48, 24);
-      const t3 = circlePolygon(r * 0.20, r * 0.17, r * 0.48, 24);
-      const t4 = circlePolygon(r * 0.18, r * 0.48, r * 0.28, 24);
-      return fitPolygonsToSize(unionPolygons(pad, t1, t2, t3, t4), sizeMm);
+      const t1 = circlePolygon(r * 0.14, -r * 0.48, r * 0.14, 32);
+      const t2 = circlePolygon(r * 0.15, -r * 0.18, r * 0.42, 32);
+      const t3 = circlePolygon(r * 0.15, r * 0.18, r * 0.42, 32);
+      const t4 = circlePolygon(r * 0.14, r * 0.48, r * 0.14, 32);
+      return fitPolygonsToSize(unionPolygons(mainPad, t1, t2, t3, t4), sizeMm);
     }
 
     case 'urso': {
-      const head = circlePolygon(r * 0.72, 0, -r * 0.08, 48);
-      const earL = circlePolygon(r * 0.32, -r * 0.52, r * 0.45, 32);
-      const earR = circlePolygon(r * 0.32, r * 0.52, r * 0.45, 32);
-      return fitPolygonsToSize(unionPolygons(head, earL, earR), sizeMm);
+      const head = circlePolygon(r * 0.72, 0, -r * 0.08, 56);
+      const earL = circlePolygon(r * 0.32, -r * 0.52, r * 0.45, 40);
+      const earR = circlePolygon(r * 0.32, r * 0.52, r * 0.45, 40);
+      const merged = unionPolygons(head, earL, earR);
+      return fitPolygonsToSize(
+        offsetPolygons(offsetPolygons(merged, 1.0, 'round'), -1.0, 'round'),
+        sizeMm
+      );
     }
 
     case 'gato': {
-      const head = circlePolygon(r * 0.72, 0, -r * 0.12, 48);
+      const head = circlePolygon(r * 0.72, 0, -r * 0.12, 56);
       const earL: Polygons2D = [
         [
-          [-r * 0.68, r * 0.1],
-          [-r * 0.58, r * 0.82],
-          [-r * 0.12, r * 0.45],
+          [-r * 0.68, r * 0.05],
+          [-r * 0.10, r * 0.45],
+          [-r * 0.56, r * 0.82],
         ],
       ];
       const earR: Polygons2D = [
         [
-          [r * 0.12, r * 0.45],
-          [r * 0.58, r * 0.82],
-          [r * 0.68, r * 0.1],
+          [r * 0.68, r * 0.05],
+          [r * 0.56, r * 0.82],
+          [r * 0.10, r * 0.45],
         ],
       ];
+      const merged = unionPolygons(head, earL, earR);
       return fitPolygonsToSize(
-        offsetPolygons(unionPolygons(head, earL, earR), sizeMm * 0.03, 'round'),
+        offsetPolygons(offsetPolygons(merged, -sizeMm * 0.03, 'round'), sizeMm * 0.03, 'round'),
         sizeMm
       );
     }
@@ -407,25 +523,24 @@ export function shapeGalleryToPolygons(shapeId: string, sizeMm: number): Polygon
       const ring: PolygonRing = [
         [-r * 0.75, -r * 0.55],
         [r * 0.75, -r * 0.55],
-        [r * 0.9, r * 0.45],
+        [r * 0.90, r * 0.45],
         [r * 0.42, -r * 0.05],
         [0, r * 0.65],
         [-r * 0.42, -r * 0.05],
-        [-r * 0.9, r * 0.45],
+        [-r * 0.90, r * 0.45],
       ];
-      return fitPolygonsToSize(offsetPolygons([ring], sizeMm * 0.04, 'round'), sizeMm);
+      return fitPolygonsToSize(
+        offsetPolygons(offsetPolygons([ring], -sizeMm * 0.025, 'round'), sizeMm * 0.04, 'round'),
+        sizeMm
+      );
     }
 
     case 'controle': {
-      const center = roundedRectPolygon(r * 1.1, r * 0.65, r * 0.18, 0, r * 0.1);
-      const gripL = rotatePolygons(roundedRectPolygon(r * 0.5, r * 1.1, r * 0.24), 22);
-      const gripR = rotatePolygons(roundedRectPolygon(r * 0.5, r * 1.1, r * 0.24), -22);
+      // Classic modern gamepad silhouette (ergonomic angled grips, central body, and top shoulder bumpers)
+      const svgGamepad = `<svg viewBox="0 0 100 100"><path d="M 32 22 L 68 22 C 78 22 86 28 90 40 L 95 62 C 98 76 88 86 76 84 C 68 82 63 74 58 62 L 42 62 C 37 74 32 82 24 84 C 12 86 2 76 5 62 L 10 40 C 14 28 22 22 32 22 Z"/></svg>`;
+      const poly = svgToPolygons(svgGamepad, sizeMm);
       return fitPolygonsToSize(
-        unionPolygons(
-          center,
-          translatePolygons(gripL, -r * 0.52, -r * 0.12),
-          translatePolygons(gripR, r * 0.52, -r * 0.12)
-        ),
+        offsetPolygons(offsetPolygons(poly, -sizeMm * 0.02, 'round'), sizeMm * 0.02, 'round'),
         sizeMm
       );
     }
@@ -439,11 +554,11 @@ export function shapeGalleryToPolygons(shapeId: string, sizeMm: number): Polygon
         [r * 0.55, r * 0.08],
         [r * 0.05, r * 0.08],
       ];
-      return fitPolygonsToSize(offsetPolygons([ring], sizeMm * 0.02, 'round'), sizeMm);
+      return fitPolygonsToSize(roundedPolygonFromVertices(ring, sizeMm * 0.025), sizeMm);
     }
 
     default:
-      return circlePolygon(r, 0, 0, 48);
+      return circlePolygon(r, 0, 0, 64);
   }
 }
 
@@ -451,7 +566,7 @@ export function shapeGalleryToPolygons(shapeId: string, sizeMm: number): Polygon
 // TEXT & SVG TO 2D POLYGONS
 // ============================================================================
 
-function flattenOpenTypePath(path: opentype.Path, curveSteps = 10): Polygons2D {
+function flattenOpenTypePath(path: opentype.Path, curveSteps = 12): Polygons2D {
   const rings: Polygons2D = [];
   let current: PolygonRing = [];
   let cx = 0;
@@ -549,7 +664,7 @@ export async function textToPolygons(
   for (let idx = 0; idx < lines.length; idx++) {
     const line = lines[idx];
     const otPath = font.getPath(line, 0, 0, baseFontSize);
-    const rawPolys = flattenOpenTypePath(otPath, 10);
+    const rawPolys = flattenOpenTypePath(otPath, 12);
     const centeredLine = centerPolygons(rawPolys, 0, -idx * baseFontSize * lineSpacing);
     allLinePolys.push(...centeredLine);
   }
@@ -577,9 +692,8 @@ export async function textToIndividualLetterPolygons(
   const font = await loadFont(fontId);
   const baseSize = 100;
 
-  // Measure reference cap height using 'H'
   const refPath = font.getPath('H', 0, 0, baseSize);
-  const refBounds = getBounds2D(flattenOpenTypePath(refPath, 8));
+  const refBounds = getBounds2D(flattenOpenTypePath(refPath, 10));
   const scale = letterHeightMm / Math.max(1, refBounds.height);
 
   const items: { char: string; polys: Polygons2D; width: number; height: number }[] = [];
@@ -587,7 +701,7 @@ export async function textToIndividualLetterPolygons(
 
   for (const ch of clean) {
     const p = font.getPath(ch, 0, 0, baseSize);
-    const raw = flattenOpenTypePath(p, 10);
+    const raw = flattenOpenTypePath(p, 12);
     const scaled = scalePolygons(raw, scale, scale);
     const b = getBounds2D(scaled);
     if (b.width < 0.1) continue;
@@ -607,7 +721,6 @@ export async function textToIndividualLetterPolygons(
     cursorX += pb.width + spacingMm;
   }
 
-  // Center the entire word around X = 0
   if (items.length > 0) {
     const totalWidth = cursorX - spacingMm;
     const shiftX = -totalWidth * 0.5;
@@ -629,7 +742,6 @@ export function svgToPolygons(svgContent: string, targetSizeMm: number): Polygon
 
   const rings: Polygons2D = [];
 
-  // Extract all path d="..." attributes
   const pathRegex = /\bd=["']([^"']+)["']/gi;
   let match: RegExpExecArray | null;
   while ((match = pathRegex.exec(svgContent)) !== null) {
@@ -638,7 +750,6 @@ export function svgToPolygons(svgContent: string, targetSizeMm: number): Polygon
     rings.push(...parsed);
   }
 
-  // Extract <polygon points="...">
   const polyRegex = /<polygon[^>]*\bpoints=["']([^"']+)["']/gi;
   while ((match = polyRegex.exec(svgContent)) !== null) {
     const nums = match[1]
@@ -653,7 +764,6 @@ export function svgToPolygons(svgContent: string, targetSizeMm: number): Polygon
     if (ring.length >= 3) rings.push(ring);
   }
 
-  // Extract <circle cx="..." cy="..." r="...">
   const circleRegex = /<circle[^>]*>/gi;
   while ((match = circleRegex.exec(svgContent)) !== null) {
     const tag = match[0];
@@ -661,7 +771,7 @@ export function svgToPolygons(svgContent: string, targetSizeMm: number): Polygon
     const cy = Number((/\bcy=["']([^"']+)["']/i.exec(tag) || [])[1] || 0);
     const r = Number((/\br=["']([^"']+)["']/i.exec(tag) || [])[1] || 0);
     if (r > 0) {
-      rings.push(...circlePolygon(r, cx, -cy, 36));
+      rings.push(...circlePolygon(r, cx, -cy, 40));
     }
   }
 
@@ -748,7 +858,7 @@ function parseSvgPathData(d: string): Polygons2D {
           const y2 = cmd === 'c' ? cy + nextNum() : nextNum();
           const x = cmd === 'c' ? cx + nextNum() : nextNum();
           const y = cmd === 'c' ? cy + nextNum() : nextNum();
-          const steps = 10;
+          const steps = 12;
           for (let s = 1; s <= steps; s++) {
             const t = s / steps;
             const mt = 1 - t;
@@ -780,7 +890,7 @@ function parseSvgPathData(d: string): Polygons2D {
           const y2 = cmd === 's' ? cy + nextNum() : nextNum();
           const x = cmd === 's' ? cx + nextNum() : nextNum();
           const y = cmd === 's' ? cy + nextNum() : nextNum();
-          const steps = 10;
+          const steps = 12;
           for (let s = 1; s <= steps; s++) {
             const t = s / steps;
             const mt = 1 - t;
@@ -810,7 +920,7 @@ function parseSvgPathData(d: string): Polygons2D {
           const y1 = cmd === 'q' ? cy + nextNum() : nextNum();
           const x = cmd === 'q' ? cx + nextNum() : nextNum();
           const y = cmd === 'q' ? cy + nextNum() : nextNum();
-          const steps = 8;
+          const steps = 10;
           for (let s = 1; s <= steps; s++) {
             const t = s / steps;
             const mt = 1 - t;
@@ -834,7 +944,6 @@ function parseSvgPathData(d: string): Polygons2D {
         break;
       }
       default: {
-        // Skip unsupported parameters safely
         if (hasNum()) nextNum();
         break;
       }
@@ -861,7 +970,6 @@ export function qrToPolygons(content: string, totalSizeMm: number): Polygons2D {
       if (data[row * size + col]) {
         const cx = -half + (col + 0.5) * cellMm;
         const cy = half - (row + 0.5) * cellMm;
-        // Slight overlap (+0.02mm) so adjacent dark modules fuse cleanly into single manifold islands
         rects.push(...rectPolygon(cellMm + 0.02, cellMm + 0.02, cx, cy));
       }
     }
@@ -878,9 +986,6 @@ interface ShapeHierarchy {
   holes: PolygonRing[];
 }
 
-/**
- * Groups flat Polygons2D (from Clipper2) into outer contours and their immediate holes
- */
 function buildPolygonHierarchy(polys: Polygons2D): ShapeHierarchy[] {
   const outers: { ring: PolygonRing; area: number }[] = [];
   const holes: { ring: PolygonRing; area: number }[] = [];
@@ -895,7 +1000,6 @@ function buildPolygonHierarchy(polys: Polygons2D): ShapeHierarchy[] {
     }
   }
 
-  // Sort outers from smallest to largest so each hole attaches to the smallest enclosing outer ring
   outers.sort((a, b) => a.area - b.area);
 
   const groups: ShapeHierarchy[] = outers.map((o) => ({ outer: o.ring, holes: [] }));
@@ -979,20 +1083,16 @@ export function extrudePolygons(polys: Polygons2D, options: ExtrudeOptions): THR
 
     const indices = earcut(flatCoords, holeIndices, 2);
 
-    // Top and bottom caps
     for (let i = 0; i < indices.length; i += 3) {
       const p0 = allPts[indices[i]];
       const p1 = allPts[indices[i + 1]];
       const p2 = allPts[indices[i + 2]];
 
-      // Enforce counter-clockwise orientation for top cap (+Z normal)
       const cross =
         (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0]);
 
       if (cross >= 0) {
-        // Top cap (+Z)
         pushTri(p0[0], p0[1], z1, p1[0], p1[1], z1, p2[0], p2[1], z1);
-        // Bottom cap (-Z)
         pushTri(p0[0], p0[1], z0, p2[0], p2[1], z0, p1[0], p1[1], z0);
       } else {
         pushTri(p0[0], p0[1], z1, p2[0], p2[1], z1, p1[0], p1[1], z1);
@@ -1000,14 +1100,12 @@ export function extrudePolygons(polys: Polygons2D, options: ExtrudeOptions): THR
       }
     }
 
-    // Side walls for outer ring (CCW) and hole rings (CW)
     const allRings = [group.outer, ...group.holes];
     for (const ring of allRings) {
       const n = ring.length;
       for (let i = 0; i < n; i++) {
         const [x1, y1] = ring[i];
         const [x2, y2] = ring[(i + 1) % n];
-        // Two triangles forming quad from (x1,y1) to (x2,y2)
         pushTri(x1, y1, z0, x2, y2, z0, x2, y2, z1);
         pushTri(x1, y1, z0, x2, y2, z1, x1, y1, z1);
       }
@@ -1020,13 +1118,8 @@ export function extrudePolygons(polys: Polygons2D, options: ExtrudeOptions): THR
   return geom;
 }
 
-/**
- * Extrudes a 2D profile (defined in YZ plane) along the X axis centered at X=0.
- * Ideal for L-shaped phone stands, hooks, brackets, and clips!
- */
 export function extrudeProfileAlongX(profileYZ: Polygons2D, widthX: number): THREE.BufferGeometry {
   const geom = extrudePolygons(profileYZ, { height: widthX, zOffset: -widthX * 0.5 });
-  // Map (x -> y, y -> z, z -> x) so the extrusion direction is X and the 2D profile lies in Y-Z
   const pos = geom.getAttribute('position') as THREE.BufferAttribute;
   const norm = geom.getAttribute('normal') as THREE.BufferAttribute;
   for (let i = 0; i < pos.count; i++) {

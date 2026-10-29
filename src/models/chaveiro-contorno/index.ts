@@ -6,7 +6,7 @@ import {
   subtractPolygons,
   translatePolygons,
   getBounds2D,
-  circlePolygon,
+  attachKeyringTab,
   textToPolygons,
   shapeGalleryToPolygons,
   svgToPolygons,
@@ -214,20 +214,15 @@ export const chaveiroContornoModule: ProductModule = {
     );
 
     let base2D = bridgedBase;
-    const baseBounds = getBounds2D(base2D);
 
-    // Attach keyring tab
+    // Attach keyring tab seamlessly into the local contour boundary
     if (posicaoArgola !== 'sem_argola') {
-      const outerR = furoDiam * 0.5 + 3.0;
-      const innerR = furoDiam * 0.5;
-      const tabX =
-        posicaoArgola === 'esquerda' ? baseBounds.minX - outerR * 0.45 : 0;
-      const tabY =
-        posicaoArgola === 'topo' ? baseBounds.maxY + outerR * 0.45 : 0;
-
-      const outerTab = circlePolygon(outerR, tabX, tabY, 36);
-      const hole = circlePolygon(innerR, tabX, tabY, 32);
-      base2D = subtractPolygons(unionPolygons(base2D, outerTab), hole);
+      base2D = attachKeyringTab(
+        base2D,
+        posicaoArgola === 'topo' ? 'top' : 'left',
+        furoDiam,
+        2.8
+      );
     }
 
     let finalRelevoPolys = foregroundPolys;

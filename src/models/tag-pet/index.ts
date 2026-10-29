@@ -2,10 +2,9 @@ import { ProductModule, GeneratedPartMesh } from '@/engine/types';
 import {
   Polygons2D,
   unionPolygons,
-  subtractPolygons,
   translatePolygons,
   getBounds2D,
-  circlePolygon,
+  attachKeyringTab,
   textToPolygons,
   shapeGalleryToPolygons,
   extrudePolygons,
@@ -134,16 +133,10 @@ export const tagPetModule: ProductModule = {
     const corTexto = String(params.cor_texto || '#ffffff');
 
     let shape2D = shapeGalleryToPolygons(formato, tamanho);
-    const sb = getBounds2D(shape2D);
 
-    // Top keyring loop tab
-    const loopOuterR = furoArgola * 0.5 + 2.4;
-    const loopInnerR = furoArgola * 0.5;
-    const loopY = sb.maxY - 0.5;
-    const outerLoop = circlePolygon(loopOuterR, 0, loopY, 32);
-    const innerHole = circlePolygon(loopInnerR, 0, loopY, 28);
-
-    shape2D = subtractPolygons(unionPolygons(shape2D, outerLoop), innerHole);
+    // Attach top pendant keyring tab so it fuses seamlessly into the exact top edge at x = 0
+    // (whether the tag is a bone with a central shaft dip, a heart with a top cleft, a circle, or a shield!)
+    shape2D = attachKeyringTab(shape2D, 'top', furoArgola, 2.5);
 
     const textPolysList: Polygons2D[] = [];
     const hasPhone = telefone.trim().length > 0;

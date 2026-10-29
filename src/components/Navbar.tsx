@@ -1,6 +1,12 @@
-import React from 'react';
-import Link from 'next/link';
-import { Box, Calculator, Wrench, Image as ImageIcon, Layers } from 'lucide-react';
+import React from "react";
+import Link from "next/link";
+import {
+  Box,
+  Calculator,
+  Wrench,
+  Image as ImageIcon,
+  Layers,
+} from "lucide-react";
 
 export default function Navbar() {
   return (
@@ -26,7 +32,7 @@ export default function Navbar() {
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-200 hover:text-brand-400 hover:bg-slate-800/60 transition"
           >
             <Layers className="w-4 h-4 text-brand-400" />
-            <span>Catálogo 3D</span>
+            <span>Modelos</span>
           </Link>
 
           <Link
@@ -34,7 +40,7 @@ export default function Navbar() {
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-200 hover:text-brand-400 hover:bg-slate-800/60 transition"
           >
             <Calculator className="w-4 h-4 text-brand-400" />
-            <span>Calculadora de Custos</span>
+            <span>Calculadora</span>
           </Link>
 
           <Link
@@ -42,7 +48,7 @@ export default function Navbar() {
             className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-200 hover:text-brand-400 hover:bg-slate-800/60 transition"
           >
             <ImageIcon className="w-4 h-4 text-brand-400" />
-            <span>Imagem → SVG</span>
+            <span>Vetorizar</span>
           </Link>
 
           <Link

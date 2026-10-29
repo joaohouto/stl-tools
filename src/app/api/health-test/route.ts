@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 import { PRODUCT_MODULES, getDefaultParams } from '@/models/registry';
 import { AVAILABLE_FONTS } from '@/engine/fontManager';
-import { textToPolygons, getBounds2D } from '@/engine/cad';
+import {
+  BUILTIN_SHAPES,
+  shapeGalleryToPolygons,
+  attachKeyringTab,
+  signedArea2D,
+  textToPolygons,
+  getBounds2D,
+} from '@/engine/cad';
 import {
   computeModelMetrics,
   calculatePrintPricing,
@@ -15,6 +22,34 @@ import {
 
 export async function GET() {
   try {
+    const shapeResults = [];
+    for (const s of BUILTIN_SHAPES) {
+      const polys = shapeGalleryToPolygons(s.id, 50);
+      const outers = polys.filter((r) => signedArea2D(r) > 0).length;
+      const holes = polys.filter((r) => signedArea2D(r) < 0).length;
+      const expectedOuters = s.id === 'patinha' ? 5 : 1;
+      if (outers !== expectedOuters || holes !== 0) {
+        throw new Error(
+          `Forma ${s.id} inválida: esperado ${expectedOuters} contorno(s) externo(s) e 0 furos, obtido outers=${outers}, holes=${holes}`
+        );
+      }
+      if (s.id !== 'patinha') {
+        const withTopLoop = attachKeyringTab(polys, 'top', 4.0, 2.5);
+        const topOuters = withTopLoop.filter((r) => signedArea2D(r) > 0).length;
+        const topHoles = withTopLoop.filter((r) => signedArea2D(r) < 0).length;
+        if (topOuters !== 1 || topHoles !== 1) {
+          throw new Error(
+            `Pingente topo desconectado na forma ${s.id}: outers=${topOuters}, holes=${topHoles}`
+          );
+        }
+      }
+      shapeResults.push({
+        id: s.id,
+        outers,
+        vertices: polys[0].length,
+      });
+    }
+
     const fontResults = [];
     for (const font of AVAILABLE_FONTS) {
       const polys = await textToPolygons('STLTools 3D\nTeste Acentuação', font.id, 14);
@@ -96,8 +131,10 @@ export async function GET() {
 
     return NextResponse.json({
       ok: true,
+      shapesTested: shapeResults.length,
       fontsTested: fontResults.length,
       modelsTested: modelResults.length,
+      shapes: shapeResults,
       fonts: fontResults,
       models: modelResults,
     });

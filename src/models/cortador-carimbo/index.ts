@@ -180,8 +180,13 @@ export const cortadorCarimboModule: ProductModule = {
       baseShape2D = shapeGalleryToPolygons(forma, tamanho);
     }
 
-    // Smooth outer silhouette for clean dough release
-    const innerCut2D = offsetPolygons(baseShape2D, 1.5, 'round');
+    // Smooth outer silhouette for clean dough release (bridges multi-part icons like paw prints or words!)
+    const bridgeDist = Math.max(2.5, tamanho * 0.075);
+    const innerCut2D = offsetPolygons(
+      offsetPolygons(baseShape2D, bridgeDist, 'round'),
+      -(bridgeDist - 1.2),
+      'round'
+    );
     const bladeOuter2D = offsetPolygons(innerCut2D, espLamina, 'round');
     const flangeOuter2D = offsetPolygons(innerCut2D, larguraAba, 'round');
 
@@ -198,10 +203,13 @@ export const cortadorCarimboModule: ProductModule = {
 
     // Stamp Marker + Central Knob Handle
     const stampPlate2D = offsetPolygons(innerCut2D, -folgaCarimbo, 'round');
-    // Decorative inner contour lines on the stamp
+    // Decorative inner contour lines on the stamp (or multi-island details for paw/text)
     const innerDetailOuter = offsetPolygons(stampPlate2D, -2.5, 'round');
     const innerDetailInner = offsetPolygons(stampPlate2D, -4.2, 'round');
-    const stampDetailRing = subtractPolygons(innerDetailOuter, innerDetailInner);
+    const stampDetailRing =
+      baseShape2D.length > 1
+        ? offsetPolygons(baseShape2D, -0.6, 'round')
+        : subtractPolygons(innerDetailOuter, innerDetailInner);
 
     const stampPlateGeom = extrudePolygons(stampPlate2D, { height: 3.0, zOffset: 0 });
     const stampReliefGeom = extrudePolygons(stampDetailRing, { height: 2.2, zOffset: 3.0 });
