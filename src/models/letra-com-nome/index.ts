@@ -106,7 +106,7 @@ export const letraComNomeModule: ProductModule = {
         name: 'cor_letra',
         label: 'Cor da Letra Inicial',
         type: 'color',
-        default: '#f472b6',
+        default: '#f97316',
         previewOnly: true,
       },
       {
@@ -133,7 +133,7 @@ export const letraComNomeModule: ProductModule = {
     const espessuraNome = Number(params.espessura_nome || 6);
     const folga = Number(params.folga || 0.25);
     const baseApoio = Boolean(params.base_apoio ?? true);
-    const corLetra = String(params.cor_letra || '#f472b6');
+    const corLetra = String(params.cor_letra || '#f97316');
     const corNome = String(params.cor_nome || '#ffffff');
 
     let letra2D = await textToPolygons(letra, fonteLetra, tamanho);
@@ -145,13 +145,11 @@ export const letraComNomeModule: ProductModule = {
     }
 
     const alturaNome = Math.max(16, tamanho * 0.24);
-    const rawNome2D = await textToPolygons(nome, fonteNome, alturaNome);
-    // Connect script letters slightly with a subtle bridge offset so it prints as 1 solid piece
-    const connectedNome2D = offsetPolygons(offsetPolygons(rawNome2D, 0.9, 'round'), -0.5, 'round');
+    const nome2D = await textToPolygons(nome, fonteNome, alturaNome);
 
     // Pocket recess in the front of the big letter (depth = 2.4mm, clearance = +folga)
     const recessDepth = 2.4;
-    const recess2D = offsetPolygons(connectedNome2D, folga, 'round');
+    const recess2D = offsetPolygons(nome2D, folga, 'round');
 
     const backHeight = espessuraLetra - recessDepth;
     const letraBackGeom = extrudePolygons(letra2D, { height: backHeight, zOffset: 0 });
@@ -162,7 +160,7 @@ export const letraComNomeModule: ProductModule = {
     });
 
     const letraGeom = mergeGeometries([letraBackGeom, letraFrontGeom]);
-    const nomeGeom = extrudePolygons(connectedNome2D, {
+    const nomeGeom = extrudePolygons(nome2D, {
       height: espessuraNome,
       zOffset: backHeight,
     });

@@ -1,13 +1,16 @@
 import { ProductModule, GeneratedPartMesh } from '@/engine/types';
+import * as THREE from 'three';
 import {
   Polygons2D,
   unionPolygons,
+  subtractPolygons,
   translatePolygons,
   getBounds2D,
   attachKeyringTab,
   textToPolygons,
   shapeGalleryToPolygons,
   extrudePolygons,
+  mergeGeometries,
 } from '@/engine/cad';
 
 export const tagPetModule: ProductModule = {
@@ -16,7 +19,7 @@ export const tagPetModule: ProductModule = {
     name: 'Tag / Pingente de Coleira Pet',
     shortDescription: 'Pingente de identificação pet em formato Osso, Coração, Medalha ou Escudo com nome e telefone.',
     description:
-      'Gere tags de identificação para cães e gatos prontas para argola de coleira. Escolha o formato (Osso, Coração, Círculo ou Escudo), digite o nome do pet e o telefone do tutor.',
+      'Gere tags de identificação para cães e gatos prontas para argola de coleira. Escolha o formato (Osso, Coração, Círculo ou Escudo), digite o nome do pet e o telefone do tutor e escolha alto ou baixo-relevo.',
     categories: ['pets', 'chaveiros'],
     featured: false,
     free: true,
@@ -60,6 +63,17 @@ export const tagPetModule: ProductModule = {
         group: 'Formato e Texto',
       },
       {
+        name: 'modo_relevo',
+        label: 'Modo do Relevo',
+        type: 'enum',
+        default: 'alto_relevo',
+        options: [
+          { value: 'alto_relevo', label: 'Alto-Relevo (Sobressalente)' },
+          { value: 'baixo_relevo', label: 'Baixo-Relevo (Entalhado / Negativo)' },
+        ],
+        group: 'Formato e Texto',
+      },
+      {
         name: 'tamanho',
         label: 'Largura do Pingente (mm)',
         type: 'number',
@@ -81,11 +95,11 @@ export const tagPetModule: ProductModule = {
       },
       {
         name: 'relevo',
-        label: 'Altura das Letras (mm)',
+        label: 'Altura / Profundidade das Letras (mm)',
         type: 'number',
-        default: 1.2,
+        default: 1.0,
         min: 0.6,
-        max: 2.4,
+        max: 2.0,
         step: 0.2,
         group: 'Medidas',
       },
@@ -103,7 +117,7 @@ export const tagPetModule: ProductModule = {
         name: 'cor_base',
         label: 'Cor da Tag',
         type: 'color',
-        default: '#3b82f6',
+        default: '#f97316',
         previewOnly: true,
       },
       {
@@ -125,17 +139,17 @@ export const tagPetModule: ProductModule = {
     const nomePet = String(params.nome_pet ?? 'THOR');
     const telefone = String(params.telefone ?? '11 99999-0000');
     const fonte = String(params.fonte || 'Lilita One');
+    const modoRelevo = String(params.modo_relevo || 'alto_relevo');
     const tamanho = Number(params.tamanho || 46);
     const espBase = Number(params.espessura_base || 3.0);
-    const relevo = Number(params.relevo || 1.2);
+    const relevo = Math.min(Number(params.relevo || 1.0), espBase - 0.8);
     const furoArgola = Number(params.furo_argola || 4.0);
-    const corBase = String(params.cor_base || '#3b82f6');
+    const corBase = String(params.cor_base || '#f97316');
     const corTexto = String(params.cor_texto || '#ffffff');
 
     let shape2D = shapeGalleryToPolygons(formato, tamanho);
 
-    // Attach top pendant keyring tab so it fuses seamlessly into the exact top edge at x = 0
-    // (whether the tag is a bone with a central shaft dip, a heart with a top cleft, a circle, or a shield!)
+    // Attach top pendant keyring tab
     shape2D = attachKeyringTab(shape2D, 'top', furoArgola, 2.5);
 
     const textPolysList: Polygons2D[] = [];
@@ -154,17 +168,59 @@ export const tagPetModule: ProductModule = {
 
     const combinedText2D = unionPolygons(...textPolysList);
 
-    const baseGeom = extrudePolygons(shape2D, { height: espBase, zOffset: 0 });
-    const textoGeom = extrudePolygons(combinedText2D, {
-      height: relevo,
-      zOffset: espBase,
-    });
+    let baseGeom: THREE.BufferGeometry;
+    let textoGeom: THREE.BufferGeometry;
+
+    if (modoRelevo === 'baixo_relevo') {
+      const baseSolida = extrudePolygons(shape2D, { height: espBase - relevo, zOffset: 0 });
+      const faceRecortada2D = subtractPolygons(shape2D, combinedText2D);
+      const faceRecortadaGeom = extrudePolygons(faceRecortada2D, {
+        height: relevo,
+        zOffset: espBase - relevo,
+      });
+
+      baseGeom = mergeGeometries([baseSolida, faceRecortadaGeom]);
+
+      // Infill fino assentado no fundo da cavidade para entalhe 3D visível
+      const infillH = Math.min(0.4, relevo * 0.4);
+      textoGeom = extrudePolygons(combinedText2D, {
+        height: infillH,
+        zOffset: espBase - relevo,
+      });
+    } else {
+      baseGeom = extrudePolygons(shape2D, { height: espBase, zOffset: 0 });
+      textoGeom = extrudePolygons(combinedText2D, {
+        height: relevo,
+        zOffset: espBase,
+      });
+    }
+
+    const bounds = getBounds2D(shape2D);
 
     const parts: GeneratedPartMesh[] = [
       { name: 'base', label: 'Base da Tag Pet', geometry: baseGeom, color: corBase },
-      { name: 'texto', label: 'Nome / Telefone', geometry: textoGeom, color: corTexto },
+      {
+        name: 'texto',
+        label: modoRelevo === 'baixo_relevo' ? 'Entalhe / Infill' : 'Nome / Telefone',
+        geometry: textoGeom,
+        color: corTexto,
+      },
     ];
 
-    return { parts };
+    return {
+      parts,
+      fichaTecnica: {
+        title: 'Medidas da Tag Pet',
+        items: [
+          { label: 'Largura', value: `${bounds.width.toFixed(1)} mm` },
+          { label: 'Altura', value: `${bounds.height.toFixed(1)} mm` },
+          {
+            label: 'Espessura Total',
+            value: `${(modoRelevo === 'baixo_relevo' ? espBase : espBase + relevo).toFixed(1)} mm`,
+          },
+          { label: 'Acabamento', value: modoRelevo === 'baixo_relevo' ? 'Entalhado Negativo' : 'Alto-Relevo' },
+        ],
+      },
+    };
   },
 };

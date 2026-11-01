@@ -116,14 +116,14 @@ export const letraCaixaLedModule: ProductModule = {
         name: 'cor_corpo',
         label: 'Cor do Corpo (Caixa)',
         type: 'color',
-        default: '#0f172a',
+        default: '#f97316',
         previewOnly: true,
       },
       {
         name: 'cor_tampa',
         label: 'Cor da Tampa Difusora (LED)',
         type: 'color',
-        default: '#fef08a',
+        default: '#ffffff',
         previewOnly: true,
       },
     ],
@@ -143,8 +143,8 @@ export const letraCaixaLedModule: ProductModule = {
     const tampaEsp = Number(params.tampa_espessura || 1.6);
     const folga = Number(params.folga || 0.22);
     const furoFio = Number(params.furo_fio ?? 8);
-    const corCorpo = String(params.cor_corpo || '#0f172a');
-    const corTampa = String(params.cor_tampa || '#fef08a');
+    const corCorpo = String(params.cor_corpo || '#f97316');
+    const corTampa = String(params.cor_tampa || '#ffffff');
 
     const letterItems = await textToIndividualLetterPolygons(texto, fonte, altura, 14);
 

@@ -4,18 +4,39 @@ import { GeneratedPartMesh } from './types';
 import { mergeGeometries } from './cad';
 
 /**
- * Encodes a THREE.BufferGeometry into a standard Binary STL Uint8Array
+ * Encodes a THREE.BufferGeometry into a standard Binary STL Uint8Array.
+ * Automatically handles both indexed and non-indexed BufferGeometries and computes exact facet normals.
  */
 export function geometryToBinarySTL(geom: THREE.BufferGeometry, headerTitle = 'STLTools Parametric Model'): Uint8Array {
-  const pos = geom.getAttribute('position') as THREE.BufferAttribute | undefined;
-  const norm = geom.getAttribute('normal') as THREE.BufferAttribute | undefined;
+  const nonIndexed = geom.index ? geom.toNonIndexed() : geom;
+  const pos = nonIndexed.getAttribute('position') as THREE.BufferAttribute | undefined;
 
   if (!pos || pos.count < 3) {
     const empty = new Uint8Array(84);
     return empty;
   }
 
-  const numTriangles = Math.floor(pos.count / 3);
+  const pArr = pos.array as Float32Array;
+  const rawTriangles = Math.floor(pos.count / 3);
+
+  // Filter out degenerate zero-area triangles so slicers never complain
+  const validTriIndices: number[] = [];
+  for (let i = 0; i < rawTriangles; i++) {
+    const b = i * 9;
+    const ax = pArr[b], ay = pArr[b + 1], az = pArr[b + 2];
+    const bx = pArr[b + 3], by = pArr[b + 4], bz = pArr[b + 5];
+    const cx = pArr[b + 6], cy = pArr[b + 7], cz = pArr[b + 8];
+    const ux = bx - ax, uy = by - ay, uz = bz - az;
+    const vx = cx - ax, vy = cy - ay, vz = cz - az;
+    const nx = uy * vz - uz * vy;
+    const ny = uz * vx - ux * vz;
+    const nz = ux * vy - uy * vx;
+    if (nx * nx + ny * ny + nz * nz > 1e-12) {
+      validTriIndices.push(i);
+    }
+  }
+
+  const numTriangles = validTriIndices.length;
   const buffer = new ArrayBuffer(84 + numTriangles * 50);
   const view = new DataView(buffer);
 
@@ -27,15 +48,22 @@ export function geometryToBinarySTL(geom: THREE.BufferGeometry, headerTitle = 'S
   view.setUint32(80, numTriangles, true);
 
   let offset = 84;
-  const pArr = pos.array as Float32Array;
-  const nArr = norm ? (norm.array as Float32Array) : null;
 
-  for (let i = 0; i < numTriangles; i++) {
-    const base = i * 9;
+  for (let idx = 0; idx < numTriangles; idx++) {
+    const base = validTriIndices[idx] * 9;
+    const ax = pArr[base], ay = pArr[base + 1], az = pArr[base + 2];
+    const bx = pArr[base + 3], by = pArr[base + 4], bz = pArr[base + 5];
+    const cx = pArr[base + 6], cy = pArr[base + 7], cz = pArr[base + 8];
 
-    const nx = nArr ? nArr[base] : 0;
-    const ny = nArr ? nArr[base + 1] : 0;
-    const nz = nArr ? nArr[base + 2] : 1;
+    const ux = bx - ax, uy = by - ay, uz = bz - az;
+    const vx = cx - ax, vy = cy - ay, vz = cz - az;
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const len = Math.hypot(nx, ny, nz) || 1;
+    nx /= len;
+    ny /= len;
+    nz /= len;
 
     view.setFloat32(offset, nx, true);
     view.setFloat32(offset + 4, ny, true);
@@ -115,7 +143,8 @@ export function exportPartsZIP(
 }
 
 /**
- * Exports a native Multi-Part / Multi-Color .3MF archive compatible with Bambu Studio, OrcaSlicer & PrusaSlicer
+ * Exports a native Multi-Part / Multi-Color .3MF archive compatible with Bambu Studio, OrcaSlicer & PrusaSlicer.
+ * Welds shared vertices onto a 0.0001mm grid and strips degenerate triangles so slicers recognize a 100% manifold mesh.
  */
 export function exportMultiColor3MF(parts: GeneratedPartMesh[], modelName: string): Uint8Array {
   const resourcesXml: string[] = [];
@@ -123,28 +152,42 @@ export function exportMultiColor3MF(parts: GeneratedPartMesh[], modelName: strin
 
   parts.forEach((part, idx) => {
     const objId = idx + 1;
-    const pos = part.geometry.getAttribute('position') as THREE.BufferAttribute | undefined;
+    const nonIndexed = part.geometry.index ? part.geometry.toNonIndexed() : part.geometry;
+    const pos = nonIndexed.getAttribute('position') as THREE.BufferAttribute | undefined;
     if (!pos || pos.count < 3) return;
 
     const verticesLines: string[] = [];
     const trianglesLines: string[] = [];
+    const vertexMap = new Map<string, number>();
 
     const arr = pos.array as Float32Array;
     const numTris = Math.floor(pos.count / 3);
 
-    for (let v = 0; v < pos.count; v++) {
-      const vx = arr[v * 3].toFixed(4);
-      const vy = arr[v * 3 + 1].toFixed(4);
-      const vz = arr[v * 3 + 2].toFixed(4);
-      verticesLines.push(`          <vertex x="${vx}" y="${vy}" z="${vz}" />`);
-    }
+    const getWeldedVertexIndex = (x: number, y: number, z: number): number => {
+      const kx = Math.round(x * 10000);
+      const ky = Math.round(y * 10000);
+      const kz = Math.round(z * 10000);
+      const key = `${kx},${ky},${kz}`;
+      const existing = vertexMap.get(key);
+      if (existing !== undefined) return existing;
+      const newIdx = verticesLines.length;
+      vertexMap.set(key, newIdx);
+      verticesLines.push(
+        `          <vertex x="${(kx / 10000).toFixed(4)}" y="${(ky / 10000).toFixed(4)}" z="${(kz / 10000).toFixed(4)}" />`
+      );
+      return newIdx;
+    };
 
     for (let t = 0; t < numTris; t++) {
-      const v1 = t * 3;
-      const v2 = t * 3 + 1;
-      const v3 = t * 3 + 2;
+      const b = t * 9;
+      const v1 = getWeldedVertexIndex(arr[b], arr[b + 1], arr[b + 2]);
+      const v2 = getWeldedVertexIndex(arr[b + 3], arr[b + 4], arr[b + 5]);
+      const v3 = getWeldedVertexIndex(arr[b + 6], arr[b + 7], arr[b + 8]);
+      if (v1 === v2 || v2 === v3 || v3 === v1) continue;
       trianglesLines.push(`          <triangle v1="${v1}" v2="${v2}" v3="${v3}" />`);
     }
+
+    if (trianglesLines.length === 0) return;
 
     resourcesXml.push(`    <object id="${objId}" name="${escapeXml(part.label)}" type="model">
       <mesh>

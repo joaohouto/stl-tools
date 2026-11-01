@@ -1,4 +1,5 @@
 import { ProductModule, GeneratedPartMesh } from '@/engine/types';
+import * as THREE from 'three';
 import {
   Polygons2D,
   offsetPolygons,
@@ -12,6 +13,7 @@ import {
   textToPolygons,
   qrToPolygons,
   extrudePolygons,
+  mergeGeometries,
 } from '@/engine/cad';
 
 export const placaPersonalizadaModule: ProductModule = {
@@ -102,12 +104,23 @@ export const placaPersonalizadaModule: ProductModule = {
         group: 'Dimensões e Fixação',
       },
       {
+        name: 'modo_relevo',
+        label: 'Modo do Relevo',
+        type: 'enum',
+        default: 'alto_relevo',
+        options: [
+          { value: 'alto_relevo', label: 'Alto-Relevo (Sobressalente)' },
+          { value: 'baixo_relevo', label: 'Baixo-Relevo (Entalhado / Negativo)' },
+        ],
+        group: 'Dimensões e Fixação',
+      },
+      {
         name: 'relevo',
-        label: 'Altura do Relevo (Texto/QR/Moldura) (mm)',
+        label: 'Altura / Profundidade do Relevo (mm)',
         type: 'number',
-        default: 1.4,
-        min: 0.8,
-        max: 3.0,
+        default: 1.2,
+        min: 0.6,
+        max: 2.4,
         step: 0.2,
         group: 'Dimensões e Fixação',
       },
@@ -144,14 +157,14 @@ export const placaPersonalizadaModule: ProductModule = {
         name: 'cor_placa',
         label: 'Cor do Fundo da Placa',
         type: 'color',
-        default: '#f8fafc',
+        default: '#f97316',
         previewOnly: true,
       },
       {
         name: 'cor_relevo',
         label: 'Cor do Texto / QR Code (Alto Contraste)',
         type: 'color',
-        default: '#0f172a',
+        default: '#ffffff',
         previewOnly: true,
       },
     ],
@@ -170,12 +183,13 @@ export const placaPersonalizadaModule: ProductModule = {
     const largura = Number(params.largura || 95);
     const altura = Number(params.altura || 115);
     const espessura = Number(params.espessura || 3.2);
-    const relevo = Number(params.relevo || 1.4);
+    const modoRelevo = String(params.modo_relevo || 'alto_relevo');
+    const relevo = Math.min(Number(params.relevo || 1.2), espessura - 0.8);
     const raioCanto = Number(params.raio_canto ?? 8);
     const moldura = Boolean(params.moldura ?? true);
     const fixacao = String(params.fixacao || 'lisa');
-    const corPlaca = String(params.cor_placa || '#f8fafc');
-    const corRelevo = String(params.cor_relevo || '#0f172a');
+    const corPlaca = String(params.cor_placa || '#f97316');
+    const corRelevo = String(params.cor_relevo || '#ffffff');
 
     let placa2D = roundedRectPolygon(largura, altura, raioCanto, 0, 0);
 
@@ -201,8 +215,10 @@ export const placaPersonalizadaModule: ProductModule = {
     const relevoList: Polygons2D[] = [];
 
     if (moldura) {
-      const outerBorder = offsetPolygons(placa2D, -1.8, 'round');
-      const innerBorder = offsetPolygons(placa2D, -4.2, 'round');
+      const mOutR = Math.max(0.5, raioCanto - 1.8);
+      const mInR = Math.max(0.5, raioCanto - 4.2);
+      const outerBorder = roundedRectPolygon(largura - 3.6, altura - 3.6, mOutR, 0, 0);
+      const innerBorder = roundedRectPolygon(largura - 8.4, altura - 8.4, mInR, 0, 0);
       relevoList.push(subtractPolygons(outerBorder, innerBorder));
     }
 
@@ -248,15 +264,41 @@ export const placaPersonalizadaModule: ProductModule = {
 
     const combinedRelevo2D = unionPolygons(...relevoList);
 
-    const placaGeom = extrudePolygons(placa2D, { height: espessura, zOffset: 0 });
-    const relevoGeom = extrudePolygons(combinedRelevo2D, {
-      height: relevo,
-      zOffset: espessura,
-    });
+    let placaGeom: THREE.BufferGeometry;
+    let relevoGeom: THREE.BufferGeometry;
+
+    if (modoRelevo === 'baixo_relevo') {
+      const baseSolida = extrudePolygons(placa2D, { height: espessura - relevo, zOffset: 0 });
+      const faceRecortada2D = subtractPolygons(placa2D, combinedRelevo2D);
+      const faceRecortadaGeom = extrudePolygons(faceRecortada2D, {
+        height: relevo,
+        zOffset: espessura - relevo,
+      });
+
+      placaGeom = mergeGeometries([baseSolida, faceRecortadaGeom]);
+
+      // Infill fino assentado no fundo da cavidade para baixo-relevo real visível
+      const infillH = Math.min(0.4, relevo * 0.4);
+      relevoGeom = extrudePolygons(combinedRelevo2D, {
+        height: infillH,
+        zOffset: espessura - relevo,
+      });
+    } else {
+      placaGeom = extrudePolygons(placa2D, { height: espessura, zOffset: 0 });
+      relevoGeom = extrudePolygons(combinedRelevo2D, {
+        height: relevo,
+        zOffset: espessura,
+      });
+    }
 
     const parts: GeneratedPartMesh[] = [
       { name: 'placa', label: 'Placa Base', geometry: placaGeom, color: corPlaca },
-      { name: 'relevo', label: 'Relevo (Texto / QR / Moldura)', geometry: relevoGeom, color: corRelevo },
+      {
+        name: 'relevo',
+        label: modoRelevo === 'baixo_relevo' ? 'Entalhe / Infill' : 'Relevo (Texto / QR / Moldura)',
+        geometry: relevoGeom,
+        color: corRelevo,
+      },
     ];
 
     return { parts };

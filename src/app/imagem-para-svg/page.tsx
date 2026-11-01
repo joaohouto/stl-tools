@@ -4,7 +4,12 @@ import React, { useState } from 'react';
 import { imageFileToSvg } from '@/engine/vectorizer';
 import { triggerBrowserDownload } from '@/engine/exporters';
 import { strToU8 } from 'fflate';
-import { Upload, Download, Image as ImageIcon, RefreshCw } from 'lucide-react';
+import {
+  UploadSimpleIcon as Upload,
+  DownloadSimpleIcon as Download,
+  ImageIcon,
+  ArrowsClockwiseIcon as RefreshCw,
+} from '@phosphor-icons/react';
 
 export default function ImageToSvgPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);

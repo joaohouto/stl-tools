@@ -46,7 +46,8 @@ export type ProductCategory =
   | 'cortadores'
   | 'placas'
   | 'pets'
-  | 'organizacao';
+  | 'organizacao'
+  | 'acessorios';
 
 export interface ModelSchema {
   id: string;

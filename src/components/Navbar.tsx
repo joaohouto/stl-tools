@@ -1,12 +1,13 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
 import {
-  Box,
-  Calculator,
-  Wrench,
-  Image as ImageIcon,
-  Layers,
-} from "lucide-react";
+  SphereIcon,
+  CalculatorIcon,
+  ImageIcon,
+  StackIcon,
+} from "@phosphor-icons/react";
 
 export default function Navbar() {
   return (
@@ -14,14 +15,12 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-2.5 group">
           <div className="w-9 h-9 rounded-xl bg-brand-500/15 border border-brand-500/40 flex items-center justify-center group-hover:bg-brand-500/25 transition">
-            <Box className="w-5 h-5 text-brand-400" />
+            <SphereIcon className="w-5 h-5 text-brand-400" />
           </div>
           <div className="flex flex-col">
-            <span className="text-lg font-extrabold tracking-tight text-slate-100 leading-none">
-              stl<span className="text-brand-400">tools</span>
-            </span>
-            <span className="text-[10px] font-mono text-slate-400">
-              CATÁLOGO PARAMÉTRICO 3D
+            <span className="text-lg font-bold tracking-tight text-brand-400 leading-none">
+              stl
+              <span className="text-slate-100 font-medium">.joaocouto.com</span>
             </span>
           </div>
         </Link>
@@ -31,7 +30,7 @@ export default function Navbar() {
             href="/"
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-200 hover:text-brand-400 hover:bg-slate-800/60 transition"
           >
-            <Layers className="w-4 h-4 text-brand-400" />
+            <StackIcon className="w-4 h-4 text-brand-400" />
             <span>Modelos</span>
           </Link>
 
@@ -39,7 +38,7 @@ export default function Navbar() {
             href="/calculadora"
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-200 hover:text-brand-400 hover:bg-slate-800/60 transition"
           >
-            <Calculator className="w-4 h-4 text-brand-400" />
+            <CalculatorIcon className="w-4 h-4 text-brand-400" />
             <span>Calculadora</span>
           </Link>
 
@@ -49,15 +48,6 @@ export default function Navbar() {
           >
             <ImageIcon className="w-4 h-4 text-brand-400" />
             <span>Vetorizar</span>
-          </Link>
-
-          <Link
-            href="/oficina"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-brand-300 border border-slate-700 transition"
-            title="Fábrica Interna de Novos Produtos Paramétricos"
-          >
-            <Wrench className="w-3.5 h-3.5 text-brand-400" />
-            <span className="hidden sm:inline">Oficina de Modelos</span>
           </Link>
         </nav>
       </div>

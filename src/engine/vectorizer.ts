@@ -95,5 +95,5 @@ export async function imageFileToSvg(
     throw new Error('Nenhum contorno detectado na imagem. Ajuste o limiar (threshold) ou inverta as cores.');
   }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><path d="${paths.join(' ')}" fill="#16d8aa"/></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><path d="${paths.join(' ')}" fill="#f97316"/></svg>`;
 }

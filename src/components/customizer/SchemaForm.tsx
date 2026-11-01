@@ -4,8 +4,16 @@ import React, { useState } from 'react';
 import { ModelSchema, ParamDefinition } from '@/engine/types';
 import { AVAILABLE_FONTS } from '@/engine/fontManager';
 import { BUILTIN_SHAPES } from '@/engine/cad';
+import ShapeSelect from './ShapeSelect';
+import CustomSelect from './CustomSelect';
+import NumericInput from '@/components/ui/NumericInput';
 import { imageFileToSvg } from '@/engine/vectorizer';
-import { RotateCcw, Upload, Palette, Sliders } from 'lucide-react';
+import {
+  ArrowCounterClockwiseIcon as RotateCcw,
+  UploadSimpleIcon as Upload,
+  PaletteIcon as Palette,
+  SlidersIcon as Sliders,
+} from '@phosphor-icons/react';
 
 interface SchemaFormProps {
   schema: ModelSchema;
@@ -14,27 +22,54 @@ interface SchemaFormProps {
   onReset: () => void;
 }
 
-function isParamVisible(param: ParamDefinition, values: Record<string, any>): boolean {
+function isParamVisible(param: ParamDefinition, values: Record<string, any>, schema?: ModelSchema): boolean {
   if (!param.visibleIf) return true;
-  // Format: "key=val1|val2"
-  const [key, allowedRaw] = param.visibleIf.split('=');
-  if (!key || !allowedRaw) return true;
-  const currentVal = String(values[key.trim()]);
-  const allowedList = allowedRaw.split('|').map((s) => s.trim());
-  return allowedList.includes(currentVal);
+  // Supports OR groups separated by ';', where each group has AND clauses separated by '&'
+  const orGroups = param.visibleIf.split(';');
+  return orGroups.some((group) => {
+    const clauses = group.split('&');
+    return clauses.every((clause) => {
+      const trimmed = clause.trim();
+      if (trimmed.includes('!=')) {
+        const [key, rawVals] = trimmed.split('!=');
+        if (!key || !rawVals) return true;
+        const k = key.trim();
+        let currentVal = values[k];
+        if (currentVal === undefined && schema) {
+          currentVal = schema.params.find((p) => p.name === k)?.default;
+        }
+        const valStr = String(currentVal ?? '');
+        const forbiddenList = rawVals.split('|').map((s) => s.trim());
+        return !forbiddenList.includes(valStr);
+      }
+      if (trimmed.includes('=')) {
+        const [key, rawVals] = trimmed.split('=');
+        if (!key || !rawVals) return true;
+        const k = key.trim();
+        let currentVal = values[k];
+        if (currentVal === undefined && schema) {
+          currentVal = schema.params.find((p) => p.name === k)?.default;
+        }
+        const valStr = String(currentVal ?? '');
+        const allowedList = rawVals.split('|').map((s) => s.trim());
+        return allowedList.includes(valStr);
+      }
+      return true;
+    });
+  });
 }
 
 const FILAMENT_SWATCHES = [
+  '#f97316', // Laranja Brand (Padrão)
+  '#ffffff', // Branco Puro
   '#1e293b', // Preto / Grafite
-  '#f8fafc', // Branco
-  '#16d8aa', // Verde Mint STLTools
+  '#2563eb', // Azul Royal
   '#ef4444', // Vermelho
-  '#3b82f6', // Azul Royal
   '#f59e0b', // Amarelo / Ouro
   '#ec4899', // Rosa Pink
   '#8b5cf6', // Roxo
   '#10b981', // Verde Esmeralda
-  '#f97316', // Laranja
+  '#16d8aa', // Verde Mint
 ];
 
 export default function SchemaForm({
@@ -47,7 +82,7 @@ export default function SchemaForm({
   const [vectorizeError, setVectorizeError] = useState<string | null>(null);
 
   const regularParams = schema.params.filter(
-    (p) => p.type !== 'color' && isParamVisible(p, values)
+    (p) => p.type !== 'color' && isParamVisible(p, values, schema)
   );
   const colorParams = schema.params.filter((p) => p.type === 'color');
 
@@ -204,14 +239,14 @@ export default function SchemaForm({
                     <div className="flex items-center justify-between text-xs">
                       <label className="font-medium text-slate-200">{p.label}</label>
                       <div className="flex items-center gap-1">
-                        <input
-                          type="number"
+                        <NumericInput
                           value={Number(val)}
                           min={p.min}
                           max={p.max}
                           step={p.step ?? 1}
-                          onChange={(e) => onChange(p.name, Number(e.target.value))}
-                          className="w-16 px-2 py-0.5 text-right font-mono text-xs rounded bg-surface-900 border border-slate-700 text-brand-400"
+                          fallbackValue={Number(p.default ?? p.min ?? 0)}
+                          onChange={(v) => onChange(p.name, v)}
+                          className="w-16 px-2 py-0.5 text-right font-mono text-xs rounded bg-surface-900 border border-slate-700 text-brand-400 focus:outline-none focus:border-brand-500"
                         />
                       </div>
                     </div>
@@ -249,81 +284,45 @@ export default function SchemaForm({
 
               if (p.type === 'font') {
                 return (
-                  <div key={p.name} className="space-y-1.5">
-                    <label className="block text-xs font-medium text-slate-200">
-                      {p.label}
-                    </label>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {AVAILABLE_FONTS.map((f) => (
-                        <button
-                          key={f.id}
-                          type="button"
-                          onClick={() => onChange(p.name, f.id)}
-                          className={`px-2.5 py-2 rounded-lg text-left border transition ${
-                            val === f.id
-                              ? 'bg-brand-500/15 border-brand-500 text-brand-300'
-                              : 'bg-surface-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                          }`}
-                        >
-                          <div className="text-xs font-semibold truncate">{f.name}</div>
-                          <div className="text-[10px] text-slate-500 truncate">
-                            {f.styleNote}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <CustomSelect
+                    key={p.name}
+                    label={p.label}
+                    value={String(val)}
+                    onChange={(newVal) => onChange(p.name, newVal)}
+                    options={AVAILABLE_FONTS.map((f) => ({
+                      value: f.id,
+                      label: f.name,
+                      fontFamily: f.name,
+                    }))}
+                  />
                 );
               }
 
               if (p.type === 'shape') {
                 return (
-                  <div key={p.name} className="space-y-1.5">
-                    <label className="block text-xs font-medium text-slate-200">
-                      {p.label}
-                    </label>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {BUILTIN_SHAPES.map((sh) => (
-                        <button
-                          key={sh.id}
-                          type="button"
-                          onClick={() => onChange(p.name, sh.id)}
-                          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition ${
-                            val === sh.id
-                              ? 'bg-brand-500/15 border-brand-500 text-brand-300'
-                              : 'bg-surface-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                          }`}
-                        >
-                          {sh.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <ShapeSelect
+                    key={p.name}
+                    label={p.label}
+                    value={String(val)}
+                    onChange={(newVal) => onChange(p.name, newVal)}
+                    options={BUILTIN_SHAPES}
+                  />
                 );
               }
 
               if (p.type === 'enum' && p.options) {
                 return (
-                  <div key={p.name} className="space-y-1.5">
-                    <label className="block text-xs font-medium text-slate-200">
-                      {p.label}
-                    </label>
-                    <select
-                      value={String(val)}
-                      onChange={(e) => onChange(p.name, e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-surface-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-brand-500"
-                    >
-                      {p.options.map((opt) => {
-                        const oVal = typeof opt === 'string' ? opt : opt.value;
-                        const oLab = typeof opt === 'string' ? opt : opt.label;
-                        return (
-                          <option key={oVal} value={oVal}>
-                            {oLab}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
+                  <CustomSelect
+                    key={p.name}
+                    label={p.label}
+                    value={String(val)}
+                    onChange={(newVal) => onChange(p.name, newVal)}
+                    options={p.options.map((opt) => {
+                      const oVal = typeof opt === 'string' ? opt : opt.value;
+                      const oLab = typeof opt === 'string' ? opt : opt.label;
+                      return { value: oVal, label: oLab };
+                    })}
+                  />
                 );
               }
 

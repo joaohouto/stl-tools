@@ -8,6 +8,7 @@ export interface FontMeta {
 }
 
 export const AVAILABLE_FONTS: FontMeta[] = [
+  { id: 'Montserrat', name: 'Montserrat', file: '/fonts/Montserrat-Bold.ttf', styleNote: 'Geométrica Moderna Limpa (Ideal para Marcas e Nomes)' },
   { id: 'Bebas Neue', name: 'Bebas Neue', file: '/fonts/BebasNeue-Regular.ttf', styleNote: 'Alta e Forte (Ideal para Suportes e Placas)' },
   { id: 'Righteous', name: 'Righteous', file: '/fonts/Righteous-Regular.ttf', styleNote: 'Geométrica Arredondada (Ideal para Chaveiros)' },
   { id: 'Anton', name: 'Anton', file: '/fonts/Anton-Regular.ttf', styleNote: 'Impacto Ultra Espessa (Ideal para Letra-Caixa)' },
@@ -15,6 +16,11 @@ export const AVAILABLE_FONTS: FontMeta[] = [
   { id: 'Lobster', name: 'Lobster', file: '/fonts/Lobster-Regular.ttf', styleNote: 'Caligráfica Clássica (Ideal para Letra com Nome)' },
   { id: 'Lilita One', name: 'Lilita One', file: '/fonts/LilitaOne-Regular.ttf', styleNote: 'Cartoon Gordinha (Ideal para Cortadores e Pets)' },
   { id: 'Bangers', name: 'Bangers', file: '/fonts/Bangers-Regular.ttf', styleNote: 'Quadrinhos / Gamer' },
+  { id: 'Cinzel', name: 'Cinzel', file: '/fonts/Cinzel-Bold.ttf', styleNote: 'Romana Imperial Elegante (Ideal para Anéis e Monogramas)' },
+  { id: 'Fredoka', name: 'Fredoka', file: '/fonts/Fredoka-Bold.ttf', styleNote: 'Amigável & Infantil (Ideal para Ponteiras e Lápis)' },
+  { id: 'Oswald', name: 'Oswald', file: '/fonts/Oswald-Bold.ttf', styleNote: 'Industrial Condensada (Robusta para Engenharia)' },
+  { id: 'Permanent Marker', name: 'Permanent Marker', file: '/fonts/PermanentMarker-Regular.ttf', styleNote: 'Marcador Manual Urbano / Street' },
+  { id: 'Press Start 2P', name: 'Press Start 2P', file: '/fonts/PressStart2P-Regular.ttf', styleNote: 'Retro Pixel 8-Bit (Gamer & Geek)' },
 ];
 
 const fontCache = new Map<string, opentype.Font>();

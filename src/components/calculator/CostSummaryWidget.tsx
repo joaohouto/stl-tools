@@ -1,14 +1,17 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { MeshMetrics } from '@/engine/types';
+import { calculatePrintPricing } from '@/engine/meshMetrics';
 import {
-  FILAMENT_MATERIALS,
-  PRINTER_PRESETS,
-  calculatePrintPricing,
-} from '@/engine/meshMetrics';
-import { Calculator, Clock, Scale, DollarSign, ShoppingBag, ChevronDown, ChevronUp } from 'lucide-react';
+  CalculatorIcon as Calculator,
+  ClockIcon as Clock,
+  ScalesIcon as Scale,
+  CurrencyDollarIcon as DollarSign,
+  ShoppingBagIcon as ShoppingBag,
+  ArrowUpRightIcon as ArrowUpRight,
+} from '@phosphor-icons/react';
 
 interface CostSummaryWidgetProps {
   metrics: MeshMetrics;
@@ -19,46 +22,28 @@ export default function CostSummaryWidget({
   metrics,
   partsCount,
 }: CostSummaryWidgetProps) {
-  const [expanded, setExpanded] = useState(false);
-  const [materialId, setMaterialId] = useState('PLA');
-  const [filamentPricePerKg, setFilamentPricePerKg] = useState(115);
-  const [infillPercent, setInfillPercent] = useState(18);
-  const [printerId, setPrinterId] = useState('bambu-a1');
-  const [packagingBrl, setPackagingBrl] = useState(0.8);
-  const [profitMarginPercent, setProfitMarginPercent] = useState(200);
-
   const pricing = useMemo(() => {
     return calculatePrintPricing({
       volumeCm3: metrics.volumeCm3,
       areaCm2: metrics.areaCm2,
       partsCount,
-      materialId,
-      filamentPricePerKgBrl: filamentPricePerKg,
-      infillPercent,
+      materialId: 'PLA',
+      filamentPricePerKgBrl: 115,
+      infillPercent: 18,
       wallPerimeters: 3,
-      printerId,
+      printerId: 'bambu-a1',
       kwhTariffBrl: 0.92,
       failureRatePercent: 8,
-      packagingAndHardwareBrl: packagingBrl,
+      packagingAndHardwareBrl: 0.8,
       laborSetupBrl: 0.5,
-      profitMarginPercent,
+      profitMarginPercent: 200,
       shopeeCommissionPercent: 20,
       shopeeFixedFeeBrl: 4.0,
       mlCommissionPercent: 16,
       mlFixedFeeBrl: 6.0,
       batchQuantity: 10,
     });
-  }, [
-    metrics.volumeCm3,
-    metrics.areaCm2,
-    partsCount,
-    materialId,
-    filamentPricePerKg,
-    infillPercent,
-    printerId,
-    packagingBrl,
-    profitMarginPercent,
-  ]);
+  }, [metrics.volumeCm3, metrics.areaCm2, partsCount]);
 
   const formatBrl = (v: number) =>
     v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -70,171 +55,75 @@ export default function CostSummaryWidget({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-surface-800 overflow-hidden shadow-xl">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-800 bg-surface-900/60">
-        <div className="flex items-center gap-2">
-          <Calculator className="w-4 h-4 text-brand-400" />
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-            Calculadora de Custos & Preço de Venda (Ao Vivo)
-          </span>
+    <div className="p-4 rounded-2xl border border-slate-800/80 bg-surface-800/70 space-y-3">
+      <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
+        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-400">
+          <Calculator className="w-3.5 h-3.5" />
+          <span>Custo & Preço Sugerido</span>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Link
-            href="/calculadora"
-            className="text-xs text-brand-400 hover:underline font-medium"
-          >
-            Abrir Calculadora Completa →
-          </Link>
-          <button
-            type="button"
-            onClick={() => setExpanded(!expanded)}
-            className="inline-flex items-center gap-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded-md border border-slate-700 transition"
-          >
-            {expanded ? (
-              <>
-                Ocultar Ajustes <ChevronUp className="w-3.5 h-3.5" />
-              </>
-            ) : (
-              <>
-                Ajustar Filamento/Margem <ChevronDown className="w-3.5 h-3.5" />
-              </>
-            )}
-          </button>
-        </div>
+        <Link
+          href="/calculadora"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-brand-500/10 hover:bg-brand-500/20 text-brand-300 border border-brand-500/30 transition"
+        >
+          <span>Abrir Calculadora Completa</span>
+          <ArrowUpRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
 
-      {/* Main KPIs Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4">
-        <div className="p-3 rounded-xl bg-surface-900/90 border border-slate-800/80">
-          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="p-2.5 rounded-xl bg-surface-900/90 border border-slate-800/80">
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
             <Scale className="w-3.5 h-3.5 text-brand-400" />
-            Peso Estimado
+            <span>Peso Estimado</span>
           </div>
-          <div className="mt-1 text-lg font-bold font-mono text-slate-100">
+          <div className="mt-0.5 text-sm font-bold font-mono text-slate-100">
             {pricing.totalWeightGrams.toFixed(1)} g
           </div>
-          <div className="text-[11px] text-slate-500">
-            {pricing.filamentMeters.toFixed(2)}m de filamento ({infillPercent}% infill)
+          <div className="text-[10px] text-slate-500">
+            {pricing.filamentMeters.toFixed(2)}m PLA (18% infill)
           </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-surface-900/90 border border-slate-800/80">
-          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+        <div className="p-2.5 rounded-xl bg-surface-900/90 border border-slate-800/80">
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
             <Clock className="w-3.5 h-3.5 text-amber-400" />
-            Tempo Estimado
+            <span>Tempo de Impressão</span>
           </div>
-          <div className="mt-1 text-lg font-bold font-mono text-slate-100">
+          <div className="mt-0.5 text-sm font-bold font-mono text-slate-100">
             {formatTime(pricing.estimatedTimeMinutes)}
           </div>
-          <div className="text-[11px] text-slate-500">
+          <div className="text-[10px] text-slate-500">
             Mat.: {formatBrl(pricing.materialCostBrl)} | Luz: {formatBrl(pricing.energyCostBrl)}
           </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-surface-900/90 border border-slate-800/80">
-          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+        <div className="p-2.5 rounded-xl bg-surface-900/90 border border-slate-800/80">
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
             <DollarSign className="w-3.5 h-3.5 text-rose-400" />
-            Custo Total Unit.
+            <span>Custo Unitário</span>
           </div>
-          <div className="mt-1 text-lg font-bold font-mono text-slate-100">
+          <div className="mt-0.5 text-sm font-bold font-mono text-slate-100">
             {formatBrl(pricing.unitProductionCostBrl)}
           </div>
-          <div className="text-[11px] text-slate-500">
-            Inclui máquina, falha e argola/emb.
+          <div className="text-[10px] text-slate-500">
+            Filamento + energia + extras
           </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-brand-500/10 border border-brand-500/40">
-          <div className="flex items-center gap-1.5 text-xs text-brand-300 font-semibold">
+        <div className="p-2.5 rounded-xl bg-brand-500/10 border border-brand-500/40">
+          <div className="flex items-center gap-1.5 text-[11px] text-brand-300 font-semibold">
             <ShoppingBag className="w-3.5 h-3.5 text-brand-400" />
-            Preço Sugerido
+            <span>Venda Sugerida</span>
           </div>
-          <div className="mt-1 text-lg font-extrabold font-mono text-brand-400">
+          <div className="mt-0.5 text-sm font-extrabold font-mono text-brand-400">
             {formatBrl(pricing.directSalePriceBrl)}
           </div>
-          <div className="text-[11px] text-brand-200/80">
-            Shopee: {formatBrl(pricing.shopeeSuggestedPriceBrl)} | ML: {formatBrl(pricing.mercadoLivreSuggestedPriceBrl)}
+          <div className="text-[10px] text-brand-200/80 truncate">
+            Shopee: {formatBrl(pricing.shopeeSuggestedPriceBrl)}
           </div>
         </div>
       </div>
-
-      {/* Expandable Quick Calibration */}
-      {expanded && (
-        <div className="px-4 pb-4 pt-2 border-t border-slate-800/80 bg-surface-900/40 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          <div>
-            <label className="block text-slate-400 mb-1">Material & Preço/Kg (R$)</label>
-            <div className="flex gap-1.5">
-              <select
-                value={materialId}
-                onChange={(e) => setMaterialId(e.target.value)}
-                className="flex-1 px-2.5 py-1.5 rounded-lg bg-surface-900 border border-slate-700 text-slate-100"
-              >
-                {FILAMENT_MATERIALS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.id}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                value={filamentPricePerKg}
-                onChange={(e) => setFilamentPricePerKg(Number(e.target.value))}
-                className="w-20 px-2 py-1.5 rounded-lg bg-surface-900 border border-slate-700 font-mono text-brand-400"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-slate-400 mb-1">Impressora & Preenchimento (%)</label>
-            <div className="flex gap-1.5">
-              <select
-                value={printerId}
-                onChange={(e) => setPrinterId(e.target.value)}
-                className="flex-1 px-2.5 py-1.5 rounded-lg bg-surface-900 border border-slate-700 text-slate-100"
-              >
-                {PRINTER_PRESETS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name.split('(')[0]}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                min={5}
-                max={100}
-                value={infillPercent}
-                onChange={(e) => setInfillPercent(Number(e.target.value))}
-                className="w-16 px-2 py-1.5 rounded-lg bg-surface-900 border border-slate-700 font-mono text-brand-400"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-slate-400 mb-1">
-              Margem Lucro (%) & Extra/Argola (R$)
-            </label>
-            <div className="flex gap-1.5">
-              <input
-                type="number"
-                min={20}
-                max={1000}
-                step={10}
-                value={profitMarginPercent}
-                onChange={(e) => setProfitMarginPercent(Number(e.target.value))}
-                className="flex-1 px-2.5 py-1.5 rounded-lg bg-surface-900 border border-slate-700 font-mono text-brand-400"
-              />
-              <input
-                type="number"
-                step={0.1}
-                value={packagingBrl}
-                onChange={(e) => setPackagingBrl(Number(e.target.value))}
-                className="w-20 px-2 py-1.5 rounded-lg bg-surface-900 border border-slate-700 font-mono text-slate-200"
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -5,24 +5,25 @@ import Link from "next/link";
 import { PRODUCT_MODULES, CATEGORY_LABELS } from "@/models/registry";
 import { ProductCategory } from "@/engine/types";
 import {
-  Search,
-  Sparkles,
-  Smartphone,
-  Key,
-  Type,
-  Cookie,
-  QrCode,
-  PawPrint,
-  Box,
-  Calculator,
-  ArrowRight,
-  Layers,
-} from "lucide-react";
+  MagnifyingGlassIcon as Search,
+  SparkleIcon as Sparkles,
+  DeviceMobileIcon as Smartphone,
+  KeyIcon as Key,
+  TextTIcon as Type,
+  CookieIcon as Cookie,
+  QrCodeIcon as QrCode,
+  PawPrintIcon as PawPrint,
+  CubeIcon as Box,
+  CalculatorIcon as Calculator,
+  ArrowRightIcon as ArrowRight,
+  StackIcon as Layers,
+} from "@phosphor-icons/react";
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   all: <Layers className="w-4 h-4" />,
   suportes: <Smartphone className="w-4 h-4" />,
   chaveiros: <Key className="w-4 h-4" />,
+  acessorios: <Sparkles className="w-4 h-4" />,
   letreiros: <Type className="w-4 h-4" />,
   cortadores: <Cookie className="w-4 h-4" />,
   placas: <QrCode className="w-4 h-4" />,
@@ -55,7 +56,7 @@ export default function HomePage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-10">
       {/* Filters & Search Bar */}
       <section className="space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row items-center justify-between  gap-4">
           {/* Category Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0">
             {(Object.keys(CATEGORY_LABELS) as (ProductCategory | "all")[]).map(
@@ -86,7 +87,7 @@ export default function HomePage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar modelo (ex: suporte, chaveiro, pix...)"
+              placeholder="Pesquisar modelo..."
               className="w-full pl-9 pr-4 py-2 rounded-xl bg-surface-800 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-500"
             />
           </div>
@@ -96,9 +97,6 @@ export default function HomePage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
           {filteredProducts.map((mod) => {
             const { schema } = mod;
-            const defaultColors = schema.params
-              .filter((p) => p.type === "color")
-              .map((p) => String(p.default));
 
             return (
               <Link
@@ -107,37 +105,33 @@ export default function HomePage() {
                 className="group flex flex-col justify-between rounded-2xl border border-slate-800/90 bg-surface-800 hover:border-brand-500/60 transition-all duration-200 overflow-hidden shadow-lg hover:shadow-brand-500/10"
               >
                 <div>
-                  {/* Visual Preview Header */}
-                  <div className="relative h-40 bg-gradient-to-br from-surface-900 via-[#131c2b] to-surface-800 p-5 flex flex-col justify-between border-b border-slate-800/70">
-                    <div className="flex items-center justify-between gap-2">
+                  {/* Visual Preview Header com Imagem 3D isolada */}
+                  <div className="relative h-48 bg-gradient-to-b from-surface-900 to-surface-800 p-4 flex flex-col justify-between border-b border-slate-800/70 overflow-hidden">
+                    <div className="flex items-center justify-between gap-2 z-10">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900/90 border border-slate-700/80 text-[11px] font-medium text-slate-300">
                         {CATEGORY_ICONS[schema.categories[0]]}
                         {CATEGORY_LABELS[schema.categories[0]]}
                       </span>
-
-                      {schema.badge && (
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-brand-500/20 text-brand-300 border border-brand-500/30">
-                          {schema.badge}
-                        </span>
-                      )}
                     </div>
 
-                    {/* Stylized Parametric Icon + Swatches */}
-                    <div className="flex items-end justify-between">
-                      <div className="text-xs font-mono text-slate-400">
-                        {schema.params.filter((p) => p.type !== "color").length}{" "}
-                        parâmetros ajustáveis
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {defaultColors.map((col, idx) => (
-                          <span
-                            key={idx}
-                            className="w-4 h-4 rounded-full border border-white/25 shadow"
-                            style={{ backgroundColor: col }}
-                            title="Peça separada por cor"
-                          />
-                        ))}
-                      </div>
+                    {/* Imagem do Produto 3D estática salva em /public */}
+                    <div className="absolute inset-0 flex items-center justify-center p-5 pointer-events-none">
+                      <img
+                        src={`/previews/${schema.id}.png`}
+                        alt={schema.name}
+                        loading="lazy"
+                        className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (target.src.endsWith(".png")) {
+                            target.src = `/previews/${schema.id}.svg`;
+                          } else if (target.src.endsWith(".svg")) {
+                            target.src = `/api/render-preview?model=${schema.id}`;
+                          } else {
+                            target.style.display = "none";
+                          }
+                        }}
+                      />
                     </div>
                   </div>
 
@@ -150,17 +144,6 @@ export default function HomePage() {
                       {schema.shortDescription}
                     </p>
                   </div>
-                </div>
-
-                {/* Card Footer */}
-                <div className="px-5 py-3.5 border-t border-slate-800/80 bg-surface-900/40 flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-mono">
-                    {schema.parts.length}{" "}
-                    {schema.parts.length === 1 ? "peça" : "peças (Multicor)"}
-                  </span>
-                  <span className="inline-flex items-center gap-1 font-semibold text-brand-400 group-hover:translate-x-0.5 transition">
-                    Personalizar 3D <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
                 </div>
               </Link>
             );

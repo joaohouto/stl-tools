@@ -7,9 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "generate:previews": "node scripts/generate-previews.mjs",
     "new:model": "node scripts/new-model.mjs"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "@react-three/drei": "^9.121.4",
     "@react-three/fiber": "^8.17.12",
     "clipper2-js": "^1.0.4",

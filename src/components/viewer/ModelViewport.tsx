@@ -4,7 +4,14 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GeneratedPartMesh, MeshMetrics } from '@/engine/types';
-import { Download, Layers, Box, Maximize2, Sparkles, RotateCcw } from 'lucide-react';
+import {
+  DownloadSimpleIcon as Download,
+  StackIcon as Layers,
+  CubeIcon as Box,
+  ArrowsOutIcon as Maximize2,
+  SparkleIcon as Sparkles,
+  ArrowCounterClockwiseIcon as RotateCcw,
+} from '@phosphor-icons/react';
 import {
   exportMergedSTL,
   exportPartsZIP,
@@ -74,15 +81,22 @@ export default function ModelViewport({
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.45);
     keyLight.position.set(120, 200, 140);
     keyLight.castShadow = true;
-    keyLight.shadow.mapSize.width = 1024;
-    keyLight.shadow.mapSize.height = 1024;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    keyLight.shadow.camera.left = -160;
+    keyLight.shadow.camera.right = 160;
+    keyLight.shadow.camera.top = 160;
+    keyLight.shadow.camera.bottom = -160;
+    keyLight.shadow.camera.near = 10;
+    keyLight.shadow.camera.far = 600;
+    keyLight.shadow.bias = -0.0005;
     scene.add(keyLight);
 
     const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.65);
     fillLight.position.set(-130, 100, -110);
     scene.add(fillLight);
 
-    const rimLight = new THREE.PointLight(0x16d8aa, 0.6, 500);
+    const rimLight = new THREE.PointLight(0xf97316, 0.6, 500);
     rimLight.position.set(0, 140, -120);
     scene.add(rimLight);
 
@@ -99,7 +113,7 @@ export default function ModelViewport({
     bedPlate.receiveShadow = true;
     scene.add(bedPlate);
 
-    const majorGrid = new THREE.GridHelper(256, 25, 0x16d8aa, 0x1e293b);
+    const majorGrid = new THREE.GridHelper(256, 25, 0xf97316, 0x1e293b);
     majorGrid.position.y = 0;
     scene.add(majorGrid);
 
@@ -178,7 +192,7 @@ export default function ModelViewport({
 
     for (const part of parts) {
       const mat = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(part.color || '#16d8aa'),
+        color: new THREE.Color(part.color || '#f97316'),
         roughness: 0.34,
         metalness: 0.08,
         side: THREE.DoubleSide,
@@ -186,7 +200,7 @@ export default function ModelViewport({
 
       const mesh = new THREE.Mesh(part.geometry, mat);
       mesh.castShadow = true;
-      mesh.receiveShadow = true;
+      mesh.receiveShadow = false; // Prevents self-shadow acne / dark central square in preview
       // Center in CAD X/Y and place bottom of assembly at Z = 0
       mesh.position.set(-center.x, -center.y, -minZ);
       partsGroup.add(mesh);
@@ -219,7 +233,7 @@ export default function ModelViewport({
   const { x, y, z } = metrics.boundingBoxMm;
 
   return (
-    <div className="flex flex-col rounded-2xl border border-slate-800 bg-surface-800 overflow-hidden shadow-2xl">
+    <div className="flex flex-col h-full rounded-2xl border border-slate-800 bg-surface-800 overflow-hidden shadow-2xl">
       {/* Top Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-800/80 bg-surface-900/60">
         <div className="flex items-center gap-2.5">
@@ -254,7 +268,7 @@ export default function ModelViewport({
       </div>
 
       {/* 3D WebGL Viewport Container */}
-      <div className="relative h-[400px] sm:h-[460px] w-full bg-gradient-to-b from-[#0d121b] to-[#151d2a]">
+      <div className="relative flex-1 min-h-[380px] w-full bg-gradient-to-b from-[#0d121b] to-[#151d2a]">
         <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
         {/* Legend of Colored Parts */}

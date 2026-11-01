@@ -1,35 +1,45 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import dynamic from 'next/dynamic';
-import { getProductBySlug, getDefaultParams } from '@/models/registry';
-import { GeneratedPartMesh, TechnicalSpecReport } from '@/engine/types';
-import { computeModelMetrics } from '@/engine/meshMetrics';
-import SchemaForm from '@/components/customizer/SchemaForm';
-import CostSummaryWidget from '@/components/calculator/CostSummaryWidget';
-import { ArrowLeft, FileText, Share2, Check } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import dynamic from "next/dynamic";
+import { getProductBySlug, getDefaultParams } from "@/models/registry";
+import { GeneratedPartMesh, TechnicalSpecReport } from "@/engine/types";
+import { computeModelMetrics } from "@/engine/meshMetrics";
+import SchemaForm from "@/components/customizer/SchemaForm";
+import CostSummaryWidget from "@/components/calculator/CostSummaryWidget";
+import {
+  ArrowLeftIcon as ArrowLeft,
+  FileTextIcon as FileText,
+  ShareNetworkIcon as Share2,
+  CheckIcon as Check,
+} from "@phosphor-icons/react";
 
-const ModelViewport = dynamic(() => import('@/components/viewer/ModelViewport'), {
-  ssr: false,
-  loading: () => (
-    <div className="h-[460px] w-full rounded-2xl border border-slate-800 bg-surface-800 flex items-center justify-center text-xs font-mono text-slate-400">
-      Inicializando Motor 3D WebGL...
-    </div>
-  ),
-});
+const ModelViewport = dynamic(
+  () => import("@/components/viewer/ModelViewport"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[460px] w-full rounded-2xl border border-slate-800 bg-surface-800 flex items-center justify-center text-xs font-mono text-slate-400">
+        Inicializando Motor 3D WebGL...
+      </div>
+    ),
+  },
+);
 
 export default function ProductCustomizerPage() {
   const routeParams = useParams<{ slug: string }>();
-  const slug = String(routeParams?.slug || '');
+  const slug = String(routeParams?.slug || "");
   const productModule = useMemo(() => getProductBySlug(slug), [slug]);
 
   const [values, setValues] = useState<Record<string, any>>(() =>
-    productModule ? getDefaultParams(productModule) : {}
+    productModule ? getDefaultParams(productModule) : {},
   );
   const [parts, setParts] = useState<GeneratedPartMesh[]>([]);
-  const [ficha, setFicha] = useState<TechnicalSpecReport | undefined>(undefined);
+  const [ficha, setFicha] = useState<TechnicalSpecReport | undefined>(
+    undefined,
+  );
   const [isGenerating, setIsGenerating] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -58,8 +68,8 @@ export default function ProductCustomizerPage() {
         }
       } catch (err: any) {
         if (!cancelled) {
-          console.error('[STLTools Generator Error]', err);
-          setErrorMsg(err?.message || 'Erro ao gerar geometria 3D.');
+          console.error("[STLTools Generator Error]", err);
+          setErrorMsg(err?.message || "Erro ao gerar geometria 3D.");
           setIsGenerating(false);
         }
       }
@@ -76,9 +86,12 @@ export default function ProductCustomizerPage() {
   if (!productModule) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16 text-center space-y-4">
-        <h1 className="text-2xl font-bold text-slate-100">Modelo não encontrado</h1>
+        <h1 className="text-2xl font-bold text-slate-100">
+          Modelo não encontrado
+        </h1>
         <p className="text-sm text-slate-400">
-          O produto <code className="text-brand-400">{slug}</code> não existe no catálogo.
+          O produto <code className="text-brand-400">{slug}</code> não existe no
+          catálogo.
         </p>
         <Link
           href="/"
@@ -108,96 +121,81 @@ export default function ProductCustomizerPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-      {/* Top Breadcrumb & Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <Link href="/" className="hover:text-brand-400 inline-flex items-center gap-1 transition">
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Catálogo
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 space-y-6">
+      {/* First Fold: Occupies 100% of vertical screen height on desktop */}
+      <div className="flex flex-col lg:h-[calc(100vh-5.5rem)] min-h-[600px] gap-3">
+        {/* Compact Header Bar */}
+        <div className="flex items-center justify-between gap-4 border-b border-slate-800/80 pb-3 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="p-1.5 rounded-lg bg-surface-800 hover:bg-slate-800 text-slate-300 hover:text-brand-400 border border-slate-700/60 transition"
+              title="Voltar ao Catálogo"
+            >
+              <ArrowLeft className="w-4 h-4" />
             </Link>
-            <span>/</span>
-            <span className="text-slate-200 font-medium">{schema.name}</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-100">
-            {schema.name}
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-400 max-w-3xl">
-            {schema.description}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleShare}
-          className="self-start sm:self-center inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-surface-800 hover:bg-slate-800 text-slate-200 border border-slate-700 transition"
-        >
-          {copiedLink ? (
-            <>
-              <Check className="w-4 h-4 text-brand-400" />
-              Link Copiado!
-            </>
-          ) : (
-            <>
-              <Share2 className="w-4 h-4 text-brand-400" />
-              Compartilhar Modelo
-            </>
-          )}
-        </button>
-      </div>
-
-      {errorMsg && (
-        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/40 text-xs text-rose-300">
-          {errorMsg}
-        </div>
-      )}
-
-      {/* Main Two-Column Studio Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Sticky Column: 3D Viewport + Live Cost Calculator + Technical Spec */}
-        <div className="lg:col-span-7 lg:sticky lg:top-20 space-y-5">
-          <ModelViewport
-            modelName={schema.name}
-            modelSlug={schema.id}
-            parts={parts}
-            metrics={metrics}
-            isGenerating={isGenerating}
-          />
-
-          <CostSummaryWidget metrics={metrics} partsCount={parts.length} />
-
-          {ficha && (
-            <div className="p-4 rounded-2xl border border-slate-800 bg-surface-800 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-400">
-                <FileText className="w-4 h-4" />
-                {ficha.title}
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-100 leading-tight">
+                  {schema.name}
+                </h1>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {ficha.items.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="p-2.5 rounded-lg bg-surface-900/90 border border-slate-800/80"
-                  >
-                    <div className="text-[11px] text-slate-400">{item.label}</div>
-                    <div className="text-xs font-bold font-mono text-slate-100 mt-0.5">
-                      {item.value}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <p className="text-xs text-slate-400 hidden sm:block line-clamp-1">
+                {schema.shortDescription}
+              </p>
             </div>
-          )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleShare}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-surface-800 hover:bg-slate-800 text-slate-200 border border-slate-700 transition"
+          >
+            {copiedLink ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-brand-400" />
+                <span>Copiado!</span>
+              </>
+            ) : (
+              <>
+                <Share2 className="w-3.5 h-3.5 text-brand-400" />
+                <span className="hidden sm:inline">Compartilhar</span>
+              </>
+            )}
+          </button>
         </div>
 
-        {/* Right Column: Dynamic Parametric Controls */}
-        <div className="lg:col-span-5">
-          <SchemaForm
-            schema={schema}
-            values={values}
-            onChange={handleParamChange}
-            onReset={handleReset}
-          />
+        {errorMsg && (
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/40 text-xs text-rose-300 flex-shrink-0">
+            {errorMsg}
+          </div>
+        )}
+
+        {/* Studio Viewport (Left) + Customizer Panel (Right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0">
+          {/* Left Column: 100% Height 3D Viewport */}
+          <div className="lg:col-span-7 h-full min-h-[420px] lg:min-h-0 flex flex-col">
+            <ModelViewport
+              modelName={schema.name}
+              modelSlug={schema.id}
+              parts={parts}
+              metrics={metrics}
+              isGenerating={isGenerating}
+            />
+          </div>
+
+          {/* Right Column: 100% Height Form + Simplified Cost Calculator with Independent Scroll */}
+          <div className="lg:col-span-5 h-full min-h-0 flex flex-col">
+            <div className="h-full overflow-y-auto pr-1 space-y-4 pb-2">
+              <SchemaForm
+                schema={schema}
+                values={values}
+                onChange={handleParamChange}
+                onReset={handleReset}
+              />
+              <CostSummaryWidget metrics={metrics} partsCount={parts.length} />
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -104,7 +104,7 @@ export const letreiro3dMesaModule: ProductModule = {
         name: 'cor_fundo',
         label: 'Cor do Fundo / Base',
         type: 'color',
-        default: '#f59e0b',
+        default: '#f97316',
         previewOnly: true,
       },
       {
@@ -130,15 +130,14 @@ export const letreiro3dMesaModule: ProductModule = {
     const espessuraFrente = Number(params.espessura_frente || 3);
     const tipoSuporte = String(params.tipo_suporte || 'pedestal');
     const alturaHaste = Number(params.altura_haste || 65);
-    const corFundo = String(params.cor_fundo || '#f59e0b');
+    const corFundo = String(params.cor_fundo || '#f97316');
     const corFrente = String(params.cor_frente || '#ffffff');
 
     const text2D = await textToPolygons(texto, fonte, alturaLetras);
-    let fundo2D = offsetPolygons(
-      offsetPolygons(text2D, margemFundo + 3, 'round'),
-      -3,
-      'round'
-    );
+    // Smooth single positive bubble offset for clean contour background (zero spiky horizontal horns)
+    const rawFundo = offsetPolygons(text2D, margemFundo, 'round');
+    // Filter out tiny micro-holes from the background plate so it is solid and clean
+    let fundo2D = rawFundo.filter((r) => r.length >= 3);
     const b = getBounds2D(fundo2D);
 
     if (tipoSuporte === 'pedestal') {

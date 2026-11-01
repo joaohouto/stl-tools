@@ -114,14 +114,14 @@ export const organizadorMesaModule: ProductModule = {
         name: 'cor_caixa',
         label: 'Cor da Caixa',
         type: 'color',
-        default: '#334155',
+        default: '#f97316',
         previewOnly: true,
       },
       {
         name: 'cor_etiqueta',
         label: 'Cor da Etiqueta Frontal',
         type: 'color',
-        default: '#16d8aa',
+        default: '#ffffff',
         previewOnly: true,
       },
     ],
@@ -141,8 +141,8 @@ export const organizadorMesaModule: ProductModule = {
     const raioCanto = Number(params.raio_canto || 6);
     const textoFrontal = String(params.texto_frontal ?? 'OFFICE');
     const fonte = String(params.fonte || 'Bebas Neue');
-    const corCaixa = String(params.cor_caixa || '#334155');
-    const corEtiqueta = String(params.cor_etiqueta || '#16d8aa');
+    const corCaixa = String(params.cor_caixa || '#f97316');
+    const corEtiqueta = String(params.cor_etiqueta || '#ffffff');
 
     const outer2D = roundedRectPolygon(largura, profundidade, raioCanto, 0, 0);
     const innerW = largura - parede * 2;
