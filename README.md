@@ -1,20 +1,60 @@
 # STLTools — Catálogo Paramétrico 3D & Calculadora de Custos
 
-Plataforma web em **Next.js (App Router) + TypeScript + Tailwind CSS + Three.js (`@react-three/fiber`)** para geração instantânea de produtos 3D personalizados prontos para impressão (`.STL`, `.ZIP` por cor e `.3MF` multimaterial) com **Calculadora de Custos e Precificação Integrada**.
+Plataforma web profissional em **Next.js 15 (App Router) + TypeScript + Tailwind CSS + Three.js (`@react-three/fiber`)** para modelagem paramétrica instantânea no navegador e geração de arquivos prontos para manufatura aditiva (`.STL`, `.ZIP` por componentes e `.3MF` multimaterial) com **Calculadora de Custos e Precificação Integrada** e **Vetorizador de Imagem para SVG**.
 
 ---
 
-## Documentação do Projeto
+## Identidade Visual & UX
 
-Toda a arquitetura, engenharia reversa e processos internos estão documentados nos arquivos abaixo:
-
-1. **[`/PLAN.md`](file:///home/joao/Documents/www/stltools/PLAN.md)**: Plano mestre de arquitetura, síntese da engenharia reversa e especificação técnica dos motores.
-2. **[`/docs/PRODUCT_FACTORY_WORKFLOW.md`](file:///home/joao/Documents/www/stltools/docs/PRODUCT_FACTORY_WORKFLOW.md)**: Manual completo da **Fábrica Interna de Produtos** (como criar novos modelos em minutos via CLI `pnpm run new:model` ou na página `/oficina`, e como usar as Super-Primitivas 2D/3D em `src/engine/cad.ts`).
-3. **[`/docs/PROCESS_AND_IDEAS.md`](file:///home/joao/Documents/www/stltools/docs/PROCESS_AND_IDEAS.md)**: Documento vivo com todas as **"Ideias de Processo"** (fórmula matemática da calculadora de custos com Casca + Infill, cálculo reverso de comissões Shopee/Mercado Livre, padrões DFAM para impressão sem suporte e roadmap de monetização/SEO).
+- **Tema Dark Moderno**: Paleta em preto fosco com cor de destaque **Laranja Vibrante (`#f97316` / `#ea580c`)** e peças em contraste branco.
+- **Ícones**: Padronização completa com **Phosphor Icons (`@phosphor-icons/react`)**.
+- **Controles Avançados de Tipografia**: Ajuste de kerning (espaçamento entre caracteres), line-height, escala e peso de fonte em todos os modelos com texto.
+- **Renders 3D Realistas**: Previews gerados via Z-buffer sem dependência de canvas externo, iluminação de estúdio e sem artefatos de sombreamento artificial.
+- **SEO & Performance**: OpenGraph completo, metadados dinâmicos para subdomínio (`stl.joaocouto.com`), `sitemap.xml`, `robots.txt` e favicon dinâmico via `icon.tsx`.
 
 ---
 
-## Como Executar
+## Catálogo de Modelos Paramétricos (`src/models/`)
+
+1. **`suporte-celular-marca`**: Suporte Minimalista Flutuante para Celular com perfil em V invertido/trapézio suspenso, berço com gancho de altura ajustável, passagem de cabo USB-C e personalização em alto/baixo-relevo.
+2. **`chaveiro-contorno`**: Chaveiro com contorno suave contínuo ("bolha"), ícones Phosphor ou upload de imagem/SVG, opção de QR Code 3D escaneável e posicionamento de argola em 7 pontos.
+3. **`keycard-holder`**: Porta-Crachá & Cartão Rígido (padrão CR80/RFID) de perfil tático com travas angulares, alça para cordão (topo ou lateral) e fundo customizável com texto/logo.
+4. **`caixa-com-tampa`**: Caixa Organizadora Paramétrica com tampa de encaixe calibrada e personalizável (retangular, redonda ou hexagonal).
+5. **`tampa-stanley-jug`**: Coroa Bipartida para Tampa de Stanley Jug com texto circular paramétrico com raio, espaçamento e curvatura ajustáveis.
+6. **`cortador-carimbo`**: Carimbo Marcador com placa limpa e handle/cabo ergonômico sextavado desmontável para encaixe firme e apoio de pressão em massas, biscoitos e argila.
+7. **`placa-personalizada`**: Plaquinhas de balcão e sinalização com **QR Code 3D real escaneável** (Pix, Wi-Fi, Redes Sociais).
+8. **`letreiro-3d-mesa`**: Nome 3D com fundo contornado, pedestal de mesa ou hastes para topo de bolo.
+9. **`letra-com-nome`**: Inicial decorativa de mesa em grande escala com nome em relevo atravessado na frente e encaixes sob medida.
+10. **`letra-caixa-led`**: Letra-Caixa Luminosa com corpo oco, canais para fita LED, tampa difusora de encaixe e cálculo de metragem de LED.
+11. **`ponteira-lapis`**: Enfeite de lápis/caneta com nome em relevo e furo passante horizontal de ponta a ponta com seção transversal exata (redonda, sextavada ou triangular).
+12. **`tag-pet`**: Pingente de identificação pet nos formatos Osso, Coração, Medalha e Escudo com nome e telefone.
+13. **`anel-personalizado`**: Anel anatômico paramétrico nas medidas da tabela oficial brasileira (aros 10 a 35) com brasão, monograma ou baixo-relevo entalhado.
+14. **`organizador-mesa`**: Gaveteiro/organizador de mesa com divisórias ajustáveis em colunas e linhas.
+
+---
+
+## Ferramentas Integradas
+
+- **Calculadora de Custos de Impressão 3D (`/calculadora`)**:
+  - Cálculo exato de massa por Decomposição Casca + Infill.
+  - Custos de energia, desgaste da impressora, depreciação, mão de obra e taxa de falhas.
+  - Precificação com margem de lucro e reversão de taxas de marketplace (Shopee e Mercado Livre).
+  - Inputs amigáveis com edição fluida sem coerção forçada para zero.
+  - Widget compacto integrado na coluna lateral de todos os modelos do catálogo.
+- **Vetorizador de Imagem para SVG (`/imagem-para-svg`)**:
+  - Conversão instantânea de PNG/JPG/WebP em traçados SVG limpos para uso direto nos modelos 3D.
+
+---
+
+## Documentação Técnica & Arquitetura
+
+1. **[`/docs/PRODUCT_FACTORY_WORKFLOW.md`](file:///home/joao/Documents/www/stltools/docs/PRODUCT_FACTORY_WORKFLOW.md)**: Manual da Fábrica de Modelos e uso das Super-Primitivas CAD (`src/engine/cad.ts`).
+2. **[`/docs/PROCESS_AND_IDEAS.md`](file:///home/joao/Documents/www/stltools/docs/PROCESS_AND_IDEAS.md)**: Fórmulas matemáticas, cálculo de comissões e padrões DFAM (Design for Additive Manufacturing).
+3. **[`/TODOS.md`](file:///home/joao/Documents/www/stltools/TODOS.md)**: Registro de entregas concluídas e backlog das próximas inovações (incluindo o Workflow de Letreiros Gigantes de Parede).
+
+---
+
+## Como Executar Localmente
 
 ```bash
 # Instalar dependências
@@ -23,21 +63,9 @@ pnpm install
 # Iniciar servidor de desenvolvimento
 pnpm dev
 
+# Executar build de produção
+pnpm build
+
 # Criar um novo modelo de produto no catálogo automaticamente
 pnpm run new:model <slug-do-produto> "Nome do Produto" "categoria"
 ```
-
----
-
-## Geradores Paramétricos Incluídos no Catálogo (`src/models/`)
-
-1. **`suporte-celular-marca`**: Suporte de Mesa para Celular Personalizado (Clássico em L ou Encaixe em X desmontável, com Texto, Fonte, Logo SVG/PNG, ajuste de ângulo, vão para capinha e passagem de cabo carregador).
-2. **`chaveiro-suporte-celular`**: Chaveiro Apoio de Celular de Bolso personalizado com nome/marca.
-3. **`chaveiro-contorno`**: Chaveiro Personalizado com contorno automático ("bolha"), ícone da galeria ou SVG próprio e furo de argola.
-4. **`letra-com-nome`**: Inicial grande de mesa com nome atravessado na frente e rebaixo de encaixe sem cola (`folga` ajustável).
-5. **`letra-caixa-led`**: Letra-Caixa Luminosa com corpo oco, furo para fio LED, tampa difusora de encaixe e **Ficha Técnica automática de metros de fita LED**.
-6. **`cortador-carimbo`**: Fábrica de Cortadores de Biscoito/Argila com lâmina chanfrada, aba de pressão (flange) e Carimbo Marcador com pegador.
-7. **`placa-personalizada`**: Plaquinhas de Porta, Sinalização e Display de Balcão com **QR Code 3D real escaneável (Pix / Wi-Fi / Instagram)**.
-8. **`letreiro-3d-mesa`**: Nome 3D com fundo contornado, pedestal de mesa ou hastes para **Topo de Bolo**.
-9. **`tag-pet`**: Pingente de identificação Pet nos formatos Osso, Coração, Medalha e Escudo com nome e telefone.
-10. **`organizador-mesa`**: Caixa organizadora sob medida com grade configurável de divisórias (colunas × linhas) e etiqueta frontal em relevo.

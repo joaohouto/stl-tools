@@ -1,75 +1,88 @@
 # Backlog de Tarefas — STLTools (TODOS)
 
-Status: Concluído (100% dos itens implementados e verificados).
+Status do Projeto: Ativo — Catálogo com 14 modelos paramétricos funcionais, Calculadora de Custos Pro, Vetorizador e novos workflows em desenvolvimento.
 
 ---
 
-## 1. Ponteira de Lápis (`ponteira-lapis`) — Eliminação do Pixelamento no Túnel Interno
-- [x] **Geometria 100% Lisa sem Fatiamento Stepped**:
-  - Eliminado o fatiamento discreto em camadas que criava efeito pixelado / escadinha nas paredes internas do recorte.
-  - Implementada geometria lisa contínua através de prisma analítico longitudinal (`extrudeProfileAlongX`) para recorte circular (`cilindro`), sextavado (`hexagono`) e `triangulo`, garantindo paredes internas 100% lisas.
+## Entregas Recentes Concluídas (v0.3 - v0.5)
+
+- [x] **Enfeite de Lápis / Caneta (`ponteira-lapis`)**:
+  - Furo passante contínuo de ponta a ponta com geometria lisa analítica (`extrudeProfileAlongX`) para formatos circular, sextavado (grafite tradicional) e triangular.
+- [x] **Suporte de Celular Flutuante (`suporte-celular-marca`)**:
+  - Design arquitetônico em V invertido / trapézio aberto com berço suspenso, slider de controle de altura do gancho frontal, saída traseira ergonômica para passagem de cabo USB-C e cantos arredondados contínuos.
+- [x] **Keycard Holder / Porta-Crachá Rígido (`keycard-holder`)**:
+  - Modelo para cartões padrão CR80 com travas elásticas anguladas, argola configurável (topo ou lateral) e relevo de texto/logo no fundo.
+- [x] **Carimbo Marcador com Handle / Cabo Encaixável (`cortador-carimbo`)**:
+  - Remoção de orelhas e adição de cabo ergonômico separado com pino sextavado de encaixe firme para suporte de pressão em massas, biscoitos e argila.
+- [x] **Caixa Organizadora com Tampa (`caixa-com-tampa`)**:
+  - Caixa paramétrica (retangular, cilíndrica ou hexagonal) com tampa de encaixe calibrada (`folga` de impressão) e personalização.
+- [x] **Personalização de Tampa de Stanley Jug (`tampa-stanley-jug`)**:
+  - Coroa bipartida (superior/inferior) com diâmetro milimétrico calibrado para a tampa original da garrafa e gerador de texto circular paramétrico com raio e curvatura ajustáveis.
+- [x] **Chaveiro com Contorno & QR Code (`chaveiro-contorno`)**:
+  - Integração de QR Code 3D escaneável com alto/baixo relevo e contorno suave ("bolha") com cantos harmônicos.
+- [x] **Tipografia & Fontes Expandidas**:
+  - Inclusão da fonte **Montserrat** e controles de kerning (letter-spacing), line-height e pesos de fonte para textos paramétricos.
+- [x] **Padronização Visual & Ícones**:
+  - Migração de todos os ícones para **Phosphor Icons (`@phosphor-icons/react`)**.
+  - Brand color atualizada para **Laranja Vibrante (`#f97316` / `#ea580c`)** com modelos com base laranja e detalhes em branco por padrão.
+  - Redesenho da Home: remoção de footer dos cards, tags de categoria de palavra única e previews Z-buffer 3D realistas sem drop shadow artificial.
+- [x] **Calculadora de Custos Integrada**:
+  - UX aprimorada nos inputs numéricos permitindo apagar valores livremente sem coerção imediata para 0.
+  - Widget compacto inserido na coluna lateral direita da página de personalização do modelo com botão de expansão para a calculadora completa.
+- [x] **SEO & Estrutura Web**:
+  - Metadados completos para o domínio `joaocouto.com` (`stl.joaocouto.com`), geração dinâmica de `icon.tsx`, `sitemap.xml` e `robots.txt`.
 
 ---
 
-## 2. Chaveiro com Contorno (`chaveiro-contorno`) — Lapidação Completa do Algoritmo de Contorno
-- [x] **Refatoração Estrutural do Contorno "Bolha"**:
-  - Corrigido bug na comparação de vértices duplicados (`Clipper.stripDuplicates`) do `clipper2-js` e adicionada deduplicação estrita (`cleanRing64` / `pushPtDedup`), eliminando 100% das rachaduras internas ("Maria") e espigões ("JOÃO").
-  - Geração de contorno suave, uniforme e esteticamente harmonioso em todas as fontes (serifadas, cursivas e geométricas).
+## 12. [NOVO] Workflow / Gerador de Letreiros Gigantes para Parede (Multi-Placas / Ender 3 & Bambu)
 
----
+> **Contexto & Visão**:
+> Utilizar o know-how acumulado no app em manipulação poligonal (`clipper2-js`), tipografia com OpenType e exportação 3D para criar um gerador/workflow dedicado a **Letreiros Grandes de Parede** (nomes de bebês, logotipos corporativos, frases decorativas, placas de consultório e numerais de fachada).
+> 
+> Uma única letra (ex: letra "A") poderá ocupar a área útil inteira da mesa de impressão de uma **Ender 3 (220×220mm)** ou de impressoras similares (256×256mm). O usuário digita a frase ou palavra, define o tamanho total na parede (ou altura por letra), e a aplicação decompõe, gera as geometrias individuais com encaixes/gabarito e exporta tudo separado para impressão imediata.
 
-## 3. Posicionamento da Argola (Chaveiros e Pingente Pet)
-- [x] **Chaveiro com Contorno (`chaveiro-contorno`)**:
-  - Corrigido o posicionamento da argola via raycasting real na silhueta externa (`intersectHorizontalLine` / `intersectVerticalLine`) e união com cápsula arredondada (`capsulePolygon`), eliminando cantos quadrados soltos nos 4 cantos e centralizando verticalmente na letra externa em `esquerda`/`direita`.
-- [x] **Tag / Pingente Pet (`tag-pet`)**:
-  - Argola centralizada em `x = 0` no topo do pingente com ponte capsular suave até o vale central do osso/coração.
+### Especificações & Arquitetura Proposta:
 
----
+#### A. Dimensionamento Bidirecional Inteligente
+- [ ] **Modo 1: Por Altura de Letra (Base da Mesa de Impressão)**:
+  - O usuário define a altura da letra maiúscula (ex: 180mm a 220mm, maximizando a mesa da Ender 3). O app calcula automaticamente o comprimento total do letreiro na parede.
+- [ ] **Modo 2: Por Comprimento Total na Parede (Target Wall Width)**:
+  - O usuário digita a medida que tem disponível na parede (ex: `120 cm` ou `1,5 metros`). O algoritmo calcula a escala exata e redimensiona cada caractere proporcionalmente.
+- [ ] **Alerta de Mesa de Impressão**:
+  - Seletor de impressora alvo (ex: *Creality Ender 3 / 220×220mm*, *Bambu Lab P1S/X1C / 256×256mm*, *Artillery / 300×300mm*).
+  - Sinalização visual com bounding-box se alguma letra individual ou glifo ultrapassar os limites da mesa.
 
-## 4. Biblioteca de Ícones com Phosphor Icons
-- [x] **Integração de SVGs do Phosphor Icons**:
-  - Substituídos todos os ícones da galeria de formas (`PHOSPHOR_SHAPE_SVGS`, `BUILTIN_SHAPES`, `ShapeSelect`) pelos SVGs oficiais do Phosphor Icons (`viewBox="0 0 256 256"`), sem emojis.
+#### B. Curadoria de Fontes de Alta Fidelidade (Google Fonts para 3D)
+- [ ] **Seleção de Tipografias Premium Estruturalmente Robustas**:
+  - Fontes sem hastes ultrafinas que quebrem na parede ou fatiamento:
+    - *Geométricas / Modernas*: Montserrat (Black / Extra Bold), Poppins (Bold), Inter (Black).
+    - *Condensadas / Impacto*: Bebas Neue, Oswald, Anton.
+    - *Serifadas Elegantes*: Playfair Display (Bold), Cinzel (Bold).
+    - *Script / Cursivas Conectadas*: Pacifico, Great Vibes, Dancing Script (com algoritmo de união contínua booleana entre caracteres adjacentes para formar palavras em peça única).
 
----
+#### C. Fatiamento Automático & Emendas (Dovetail / Puzzle Join)
+- [ ] **Separação por Letra Solta**:
+  - Exportação individual de cada letra apoiada perfeitamente na face traseira (Z=0) para dispensar qualquer suporte de impressão.
+- [ ] **Divisão de Palavras Cursivas Longas que Excedem a Mesa**:
+  - Para palavras cursivas unificadas que medem mais de 220mm, implementar corte inteligente com encaixe tipo macho-e-fêmea / rabo-de-andorinha (dovetail) ou pinos-guia ocultos na junção das letras para colagem sem emendas visíveis na face frontal.
 
-## 5. Padronização Global de Selects (Padrão Shadcn UI)
-- [x] **Substituição de Todos os `<select>` Nativos**:
-  - Criado `CustomSelect.tsx` no padrão Shadcn UI e substituídos todos os `<select>` nativos em `SchemaForm.tsx`, `CostSummaryWidget.tsx` e `calculadora/page.tsx`.
+#### D. Otimização de Peso & Consumo de Filamento (DFAM)
+- [ ] **Alívio Traseiro Automático (Hollow Back)**:
+  - Letras gigantes sólidas gastam muito filamento. Implementar casca traseira com alívio interno (ex: paredes de 2.0mm com fundo oco ou grade interna), economizando até 60% de material e reduzindo o peso na parede.
+- [ ] **Sistemas de Fixação em Parede (Backing)**:
+  - Opção de canal embutido na parte de trás para **fita dupla-face 3M Scotch** (rebaixo de 0.8mm para a fita ficar embutida e a letra encostar 100% rente à parede).
+  - Opção de furo oculto formato **"buraco de fechadura" (keyhole slot)** para encaixe em pregos ou parafusos.
 
----
+#### E. Gabarito de Instalação e Alinhamento (Jig / Template)
+- [ ] **Gerador de Gabarito de Alinhamento 2D (PDF 1:1 Multipágina)**:
+  - Exportar folha-guia em PDF tamanho A4 para imprimir na impressora comum de papel, com cruzetas de alinhamento e o contorno exato de onde colar cada letra com o kerning e espaçamento perfeitos.
+- [ ] **Régua / Espaçador 3D Imprimível**:
+  - Mini gabaritos de espaçamento entre letras impressos em poucas gramas para servir de guia de posicionamento horizontal durante a instalação.
 
-## 6. Cor de Base Padrão: Azul em Todos os Modelos
-- [x] **Paleta Padrão Unificada**:
-  - Atualizado o valor default da cor de base em todos os 11 modelos do catálogo para azul (`#2563eb`).
-
----
-
-## 7. Remoção de Modelo do Catálogo
-- [x] **Remover Chaveiro Apoio Celular de Bolso (`chaveiro-suporte-celular`)**:
-  - Removido do catálogo, `registry.ts`, diretórios de modelos e previews estáticos.
-
----
-
-## 8. Carimbo Marcador de Biscoito / Pasta Americana (`cortador-carimbo`)
-- [x] **Transformar em Apenas Carimbo Marcador (Remodelação Completa)**:
-  - Remodelado exclusivamente como Carimbo Marcador com corpo ergonômico em 3 níveis (cintura côncava), abas laterais de extração, borda de enquadramento opcional e espelhamento automático para impressão em massas.
-
----
-
-## 9. Suporte de Celular (`suporte-celular-marca`) — Novo Design Moderno
-- [x] **Remodelação Visual**:
-  - Remodelado como Dock Unibody Arquitetônico em L com berço elevado para passagem do cabo USB-C, chanfros suaves e suporte real a `baixo_relevo` e `alto_relevo` na fachada frontal.
-
----
-
-## 10. Anel Paramétrico (`anel-personalizado`) — Fatiamento e Baixo-Relevo
-- [x] **Correção da Malha para Fatiadores (Slicers)**:
-  - Malha reconstruída como não-indexada, 100% soldada na costura (`(t + 1) % numTheta`), apoiada em `Z >= 0`, com soldagem de vértices no exportador `.3MF` e cálculo exato de normais no `.STL`.
-- [x] **Correção do Baixo-Relevo**:
-  - Entalhe booleano real (`subtractPolygons`) na mesa superior do anel.
-
----
-
-## 11. Importação de SVGs Complexos (`logo-curso.svg`)
-- [x] **Parser de SVG Multi-Caminhos Aprimorado (`svgToPolygons`)**:
-  - Limpeza de blocos invisíveis (`<clipPath>`, `<defs>`, `<mask>`, `<style>`), suporte a até 600 elementos `<path>` com arcos elípticos (`A`/`a`) e curvas quadráticas suaves (`T`/`t`), normalização individual `EvenOdd` + união global `NonZero` e simplificação RDP invariante à escala.
+#### F. Exportação em Lote & Integração com a Calculadora
+- [ ] **Exportação em Pacote `.ZIP` Organizado**:
+  - Nomenclatura ordenada para fatiamento: `01_letra_M.stl`, `02_letra_A.stl`, `03_letra_R.stl`, `04_letra_I.stl`, `05_letra_A.stl`.
+- [ ] **Exportação em `.3MF` Multi-Placas (Multi-Plate)**:
+  - Arquivo `.3MF` já distribuído em placas separadas prontas para fatiadores modernos (Bambu Studio, OrcaSlicer).
+- [ ] **Cálculo de Custo do Conjunto Completo**:
+  - Integração instantânea com a Calculadora de Custos para dar o orçamento fechado de filamento, horas de impressão e preço sugerido de venda para o cliente final.
