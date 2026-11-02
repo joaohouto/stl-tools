@@ -17,6 +17,7 @@ import {
   svgToPolygons,
   qrToPolygons,
   extrudePolygons,
+  extrudeBeveledPolygons,
   mergeGeometries,
 } from '@/engine/cad';
 
@@ -158,6 +159,24 @@ export const portaCartaoModule: ProductModule = {
         group: 'Estrutura e Argola',
       },
       {
+        name: 'ativar_filete',
+        label: 'Filete / Chanfro Suave nas Bordas',
+        type: 'boolean',
+        default: true,
+        group: 'Estrutura e Argola',
+      },
+      {
+        name: 'raio_filete',
+        label: 'Raio do Filete / Chanfro (mm)',
+        type: 'number',
+        default: 0.6,
+        min: 0.3,
+        max: 1.2,
+        step: 0.1,
+        visibleIf: 'ativar_filete=true',
+        group: 'Estrutura e Argola',
+      },
+      {
         name: 'tipo_fundo',
         label: 'Personalização no Fundo do Porta-Cartão',
         type: 'enum',
@@ -276,6 +295,8 @@ export const portaCartaoModule: ProductModule = {
     const recorteDedo = Boolean(params.recorte_dedo ?? true);
     const capacidade = String(params.capacidade || '1_cartao');
     const folgaCartao = Number(params.folga_cartao ?? 0.6);
+    const ativarFilete = Boolean(params.ativar_filete ?? true);
+    const raioFilete = Number(params.raio_filete || 0.6);
     const tipoFundo = String(params.tipo_fundo || 'texto_icone');
     const texto = String(params.texto || 'STAFF').trim();
     const fonte = String(params.fonte || 'Montserrat');
@@ -377,33 +398,65 @@ export const portaCartaoModule: ProductModule = {
     let floorGeoms: THREE.BufferGeometry[] = [];
     let detalheGeom = new THREE.BufferGeometry();
 
+    const bSize = Math.min(raioFilete * 0.7, 0.55);
+
     if (artPolys.length > 0) {
       if (modoRelevo === 'baixo_relevo') {
         const cavDepth = 0.8;
-        const bottomSolidGeom = extrudePolygons(backplateBase2D, {
-          height: espFundo - cavDepth,
-          zOffset: 0,
-        });
+        const bottomH = espFundo - cavDepth;
+        const bottomSolidGeom = ativarFilete
+          ? extrudeBeveledPolygons(backplateBase2D, {
+              height: bottomH,
+              zOffset: 0,
+              bevelSize: Math.min(bSize, bottomH * 0.4),
+              bevelSegments: 4,
+              filletBottom: true,
+              filletTop: false,
+            })
+          : extrudePolygons(backplateBase2D, {
+              height: bottomH,
+              zOffset: 0,
+            });
         const topCarved2D = subtractPolygons(backplateBase2D, artPolys);
         const topCarvedGeom = extrudePolygons(topCarved2D, {
           height: cavDepth,
-          zOffset: espFundo - cavDepth,
+          zOffset: bottomH,
         });
         floorGeoms.push(bottomSolidGeom, topCarvedGeom);
 
         detalheGeom = extrudePolygons(artPolys, {
           height: 0.35,
-          zOffset: espFundo - cavDepth,
+          zOffset: bottomH,
         });
       } else {
-        floorGeoms.push(extrudePolygons(backplateBase2D, { height: espFundo, zOffset: 0 }));
+        const floorGeom = ativarFilete
+          ? extrudeBeveledPolygons(backplateBase2D, {
+              height: espFundo,
+              zOffset: 0,
+              bevelSize: bSize,
+              bevelSegments: 4,
+              filletBottom: true,
+              filletTop: false,
+            })
+          : extrudePolygons(backplateBase2D, { height: espFundo, zOffset: 0 });
+        floorGeoms.push(floorGeom);
         detalheGeom = extrudePolygons(artPolys, {
           height: 0.5,
           zOffset: espFundo,
         });
       }
     } else {
-      floorGeoms.push(extrudePolygons(backplateBase2D, { height: espFundo, zOffset: 0 }));
+      const floorGeom = ativarFilete
+        ? extrudeBeveledPolygons(backplateBase2D, {
+            height: espFundo,
+            zOffset: 0,
+            bevelSize: bSize,
+            bevelSegments: 4,
+            filletBottom: true,
+            filletTop: false,
+          })
+        : extrudePolygons(backplateBase2D, { height: espFundo, zOffset: 0 });
+      floorGeoms.push(floorGeom);
     }
 
     // 5. Paredes laterais do berço do cartão (Z = espFundo .. espFundo + altCanal)
@@ -446,10 +499,20 @@ export const portaCartaoModule: ProductModule = {
     ];
     const frontWindow2D = roundedPolygonFromVertices(frontWindowPts, 1.4);
     const frontRetainer2D = subtractPolygons(outerBody2D, frontWindow2D);
-    const frontRetainerGeom = extrudePolygons(frontRetainer2D, {
-      height: espTrava,
-      zOffset: espFundo + altCanal,
-    });
+
+    const frontRetainerGeom = ativarFilete
+      ? extrudeBeveledPolygons(frontRetainer2D, {
+          height: espTrava,
+          zOffset: espFundo + altCanal,
+          bevelSize: bSize,
+          bevelSegments: 4,
+          filletBottom: false,
+          filletTop: true,
+        })
+      : extrudePolygons(frontRetainer2D, {
+          height: espTrava,
+          zOffset: espFundo + altCanal,
+        });
 
     const corpoGeom = mergeGeometries([...floorGeoms, channelWallsGeom, frontRetainerGeom]);
     const finalBounds = getBounds2D(outerBody2D);

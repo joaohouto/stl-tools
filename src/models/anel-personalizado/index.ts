@@ -60,8 +60,8 @@ function buildRingBodyGeometry(
   const halfWidth = baseWidth / 2;
   const mesaFullY =
     style === 'anel_selo'
-      ? innerRadius + wallThickness * 1.75
-      : innerRadius + wallThickness * 1.08;
+      ? innerRadius + wallThickness * 1.85
+      : innerRadius + wallThickness * 1.18;
   const capY = mesaFullY - recessTopBy;
 
   const mesaWidthX =
@@ -345,6 +345,7 @@ export const anelPersonalizadoModule: ProductModule = {
     const isBaixoRelevo = tipoConteudo !== 'liso' && modoRelevo === 'baixo_relevo';
 
     // 1. Gera o corpo 3D do anel com costura fechada e ombros 100% suaves
+    const recessBy = isBaixoRelevo ? profundidade * 0.75 : 0;
     const {
       geometry: rawRingGeom,
       topY: yMesa,
@@ -355,14 +356,14 @@ export const anelPersonalizadoModule: ProductModule = {
       larguraBanda,
       espessura,
       estilo,
-      0
+      recessBy
     );
 
     let ringBodyGeom = rawRingGeom;
     let detalheGeom: THREE.BufferGeometry = new THREE.BufferGeometry();
 
     if (tipoConteudo !== 'liso') {
-      const maxArtDim = Math.min(mesaWidthX * 0.56, mesaDepthZ * 0.62);
+      const maxArtDim = Math.min(mesaWidthX * 0.65, mesaDepthZ * 0.75);
       let fgPolys: Polygons2D = [];
 
       if (tipoConteudo === 'iniciais' && texto.trim()) {
@@ -378,47 +379,47 @@ export const anelPersonalizadoModule: ProductModule = {
         fgPolys = translatePolygons(fgPolys, -fgB.centerX, -fgB.centerY);
 
         if (isBaixoRelevo) {
-          // Camada superior da mesa do anel recortada fisicamente com o monograma/ícone
+          // Camada superior da mesa do anel com entalhe recortado (bezel moldura)
           const bezel2D = roundedRectPolygon(
-            mesaWidthX * 0.78,
-            mesaDepthZ * 0.80,
+            mesaWidthX * 0.85,
+            mesaDepthZ * 0.88,
             Math.min(mesaWidthX, mesaDepthZ) * 0.34,
             0,
             0,
             24
           );
           const carvedBezel2D = subtractPolygons(bezel2D, fgPolys);
-          const bezelBaseY = yMesa - 0.6;
-          const bezelTopH = 0.6 + profundidade * 0.65;
+          const bezelBaseY = yMesa - recessBy;
+          const bezelTopH = recessBy + 0.2;
           const rawCarvedBezelGeom = extrudePolygons(carvedBezel2D, {
             height: bezelTopH,
             zOffset: 0,
           });
           const placedCarvedBezel = transformGeometry(rawCarvedBezelGeom, {
-            rotateDeg: [-90, 180, 0],
+            rotateDeg: [-90, 0, 180],
             translate: [0, bezelBaseY, 0],
           });
           ringBodyGeom = mergeGeometries([ringBodyGeom, placedCarvedBezel]);
 
-          // Infill assentado próximo à superfície da cavidade para leitura nítida em qualquer ângulo
-          const infillH = 0.6 + profundidade * 0.35;
+          // Infill da gravação contrastante assentado no fundo da cavidade
+          const infillH = Math.max(0.4, recessBy * 0.55);
           const rawInfillGeom = extrudePolygons(fgPolys, {
             height: infillH,
             zOffset: 0,
           });
           detalheGeom = transformGeometry(rawInfillGeom, {
-            rotateDeg: [-90, 180, 0],
+            rotateDeg: [-90, 0, 180],
             translate: [0, bezelBaseY, 0],
           });
         } else {
-          // Alto-relevo clássico sobressalente na mesa do anel
+          // Alto-relevo clássico projetando para fora da mesa do anel
           const rawReliefGeom = extrudePolygons(fgPolys, {
-            height: profundidade + 0.4,
+            height: profundidade + 0.25,
             zOffset: 0,
           });
           detalheGeom = transformGeometry(rawReliefGeom, {
-            rotateDeg: [-90, 180, 0],
-            translate: [0, yMesa - 0.4, 0],
+            rotateDeg: [-90, 0, 180],
+            translate: [0, yMesa - 0.15, 0],
           });
         }
       }

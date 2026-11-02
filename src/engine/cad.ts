@@ -1782,6 +1782,312 @@ export function extrudePolygons(polys: Polygons2D, options: ExtrudeOptions): THR
   return geom;
 }
 
+export function polygonsToThreeShapes(polys: Polygons2D): THREE.Shape[] {
+  const groups = buildPolygonHierarchy(polys);
+  const shapes: THREE.Shape[] = [];
+
+  for (const group of groups) {
+    if (group.outer.length < 3) continue;
+    const shape = new THREE.Shape();
+    shape.moveTo(group.outer[0][0], group.outer[0][1]);
+    for (let i = 1; i < group.outer.length; i++) {
+      shape.lineTo(group.outer[i][0], group.outer[i][1]);
+    }
+    shape.closePath();
+
+    for (const hole of group.holes) {
+      if (hole.length < 3) continue;
+      const holePath = new THREE.Path();
+      holePath.moveTo(hole[0][0], hole[0][1]);
+      for (let i = 1; i < hole.length; i++) {
+        holePath.lineTo(hole[i][0], hole[i][1]);
+      }
+      holePath.closePath();
+      shape.holes.push(holePath);
+    }
+
+    shapes.push(shape);
+  }
+
+  return shapes;
+}
+
+function getBevelVector2D(
+  inPt: THREE.Vector2,
+  inPrev: THREE.Vector2,
+  inNext: THREE.Vector2
+): { x: number; y: number } {
+  const v_prev_x = inPt.x - inPrev.x;
+  const v_prev_y = inPt.y - inPrev.y;
+  const v_next_x = inNext.x - inPt.x;
+  const v_next_y = inNext.y - inPt.y;
+
+  const v_prev_lensq = v_prev_x * v_prev_x + v_prev_y * v_prev_y;
+  const colinear0 = v_prev_x * v_next_y - v_prev_y * v_next_x;
+
+  if (Math.abs(colinear0) > Number.EPSILON) {
+    const len1 = Math.sqrt(v_prev_lensq);
+    const len2 = Math.sqrt(v_next_x * v_next_x + v_next_y * v_next_y);
+    const v_prev_norm_x = -v_prev_y / len1;
+    const v_prev_norm_y = v_prev_x / len1;
+    const v_next_norm_x = -v_next_y / len2;
+    const v_next_norm_y = v_next_x / len2;
+
+    const curNormal_x = v_prev_norm_x + v_next_norm_x;
+    const curNormal_y = v_prev_norm_y + v_next_norm_y;
+    const curNormal_lensq = curNormal_x * curNormal_x + curNormal_y * curNormal_y;
+
+    if (curNormal_lensq > 1e-8) {
+      const curNormal_len = Math.sqrt(curNormal_lensq);
+      const dot = curNormal_x * v_prev_norm_x + curNormal_y * v_prev_norm_y;
+      let shrink_by = 1 / (dot / curNormal_len);
+      if (shrink_by > 2.2) shrink_by = 2.2;
+      return {
+        x: (curNormal_x / curNormal_len) * shrink_by,
+        y: (curNormal_y / curNormal_len) * shrink_by,
+      };
+    }
+    return { x: v_prev_norm_x, y: v_prev_norm_y };
+  }
+  const len = Math.sqrt(v_prev_lensq);
+  return { x: -v_prev_y / (len || 1), y: v_prev_x / (len || 1) };
+}
+
+export interface CADFilletOptions {
+  height: number;
+  zOffset?: number;
+  filletRadius?: number;
+  filletTop?: boolean;
+  filletBottom?: boolean;
+  segments?: number;
+}
+
+/**
+ * Gera uma extrusão com concordância tangencial de CAD (C1 continuity),
+ * sem criar degraus, sobras ou vincos nas paredes laterais da peça.
+ */
+export function extrudeCADFilletedPrism(
+  polys: Polygons2D,
+  options: CADFilletOptions
+): THREE.BufferGeometry {
+  const {
+    height,
+    zOffset = 0,
+    filletRadius = 0.8,
+    filletTop = true,
+    filletBottom = true,
+    segments = 4,
+  } = options;
+
+  if (polys.length === 0) return new THREE.BufferGeometry();
+  const shapes = polygonsToThreeShapes(polys);
+  if (shapes.length === 0) return new THREE.BufferGeometry();
+
+  const maxR = height * 0.45;
+  const R = Math.min(filletRadius, maxR);
+  if (R < 0.05 || (!filletTop && !filletBottom)) {
+    return extrudePolygons(polys, { height, zOffset });
+  }
+
+  const geoms: THREE.BufferGeometry[] = [];
+
+  for (const shape of shapes) {
+    const pts = shape.extractPoints(12);
+    let contour = pts.shape;
+    const holes = pts.holes || [];
+    if (contour.length < 3) continue;
+
+    if (THREE.ShapeUtils.area(contour) < 0) contour = contour.reverse();
+
+    const contourMovements: { x: number; y: number }[] = [];
+    const n = contour.length;
+    for (let i = 0; i < n; i++) {
+      const prev = (i - 1 + n) % n;
+      const next = (i + 1) % n;
+      contourMovements.push(getBevelVector2D(contour[i], contour[prev], contour[next]));
+    }
+
+    const holesMovements: { x: number; y: number }[][] = [];
+    for (const h of holes) {
+      if (THREE.ShapeUtils.area(h) > 0) h.reverse();
+      const hm: { x: number; y: number }[] = [];
+      const hn = h.length;
+      for (let i = 0; i < hn; i++) {
+        const prev = (i - 1 + hn) % hn;
+        const next = (i + 1) % hn;
+        hm.push(getBevelVector2D(h[i], h[prev], h[next]));
+      }
+      holesMovements.push(hm);
+    }
+
+    const layers: { z: number; delta: number }[] = [];
+
+    // 1. Fillet da base (concordância tangencial de Z=0 a Z=R)
+    if (filletBottom) {
+      for (let b = 0; b < segments; b++) {
+        const theta = (b / segments) * (Math.PI / 2);
+        const z = zOffset + R * (1 - Math.cos(theta));
+        const delta = R * (1 - Math.sin(theta));
+        layers.push({ z, delta });
+      }
+    }
+
+    // 2. Parede vertical intermediária (100% reta, delta = 0, tangente perfeita)
+    const zMidStart = filletBottom ? zOffset + R : zOffset;
+    const zMidEnd = filletTop ? zOffset + height - R : zOffset + height;
+    layers.push({ z: zMidStart, delta: 0 });
+    if (zMidEnd > zMidStart + 1e-4) {
+      layers.push({ z: zMidEnd, delta: 0 });
+    }
+
+    // 3. Fillet do topo (concordância tangencial de Z=height-R a Z=height)
+    if (filletTop) {
+      for (let b = 1; b <= segments; b++) {
+        const theta = (b / segments) * (Math.PI / 2);
+        const z = zOffset + height - R + R * Math.sin(theta);
+        const delta = R * (1 - Math.cos(theta));
+        layers.push({ z, delta });
+      }
+    }
+
+    // Constrói os anéis de vértices 3D
+    const layerRings: [number, number, number][][] = [];
+    for (const lyr of layers) {
+      const ring: [number, number, number][] = [];
+      for (let i = 0; i < n; i++) {
+        const x = contour[i].x + contourMovements[i].x * lyr.delta;
+        const y = contour[i].y + contourMovements[i].y * lyr.delta;
+        ring.push([x, y, lyr.z]);
+      }
+      for (let h = 0; h < holes.length; h++) {
+        const hole = holes[h];
+        const hm = holesMovements[h];
+        for (let i = 0; i < hole.length; i++) {
+          const x = hole[i].x + hm[i].x * lyr.delta;
+          const y = hole[i].y + hm[i].y * lyr.delta;
+          ring.push([x, y, lyr.z]);
+        }
+      }
+      layerRings.push(ring);
+    }
+
+    const positions: number[] = [];
+
+    // Paredes laterais conectando camada k à camada k+1
+    for (let l = 0; l < layers.length - 1; l++) {
+      const r0 = layerRings[l];
+      const r1 = layerRings[l + 1];
+
+      for (let i = 0; i < n; i++) {
+        const next = (i + 1) % n;
+        const p00 = r0[i], p01 = r0[next];
+        const p10 = r1[i], p11 = r1[next];
+
+        positions.push(...p00, ...p01, ...p11);
+        positions.push(...p00, ...p11, ...p10);
+      }
+
+      let offset = n;
+      for (let h = 0; h < holes.length; h++) {
+        const hn = holes[h].length;
+        for (let i = 0; i < hn; i++) {
+          const next = (i + 1) % hn;
+          const p00 = r0[offset + i], p01 = r0[offset + next];
+          const p10 = r1[offset + i], p11 = r1[offset + next];
+
+          positions.push(...p00, ...p11, ...p01);
+          positions.push(...p00, ...p10, ...p11);
+        }
+        offset += hn;
+      }
+    }
+
+    // Tampa inferior (normal apontando para baixo -Z)
+    const bottomCoords: number[] = [];
+    const holeIndices: number[] = [];
+    for (let i = 0; i < n; i++) bottomCoords.push(layerRings[0][i][0], layerRings[0][i][1]);
+    let hOffset = n;
+    for (let h = 0; h < holes.length; h++) {
+      holeIndices.push(bottomCoords.length / 2);
+      for (let i = 0; i < holes[h].length; i++) {
+        bottomCoords.push(layerRings[0][hOffset + i][0], layerRings[0][hOffset + i][1]);
+      }
+      hOffset += holes[h].length;
+    }
+    const bottomTris = earcut(bottomCoords, holeIndices, 2);
+    const zBot = layerRings[0][0][2];
+    for (let i = 0; i < bottomTris.length; i += 3) {
+      const i0 = bottomTris[i], i1 = bottomTris[i + 1], i2 = bottomTris[i + 2];
+      positions.push(
+        layerRings[0][i0][0], layerRings[0][i0][1], zBot,
+        layerRings[0][i2][0], layerRings[0][i2][1], zBot,
+        layerRings[0][i1][0], layerRings[0][i1][1], zBot
+      );
+    }
+
+    // Tampa superior (normal apontando para cima +Z)
+    const lastL = layerRings.length - 1;
+    const topCoords: number[] = [];
+    for (let i = 0; i < n; i++) topCoords.push(layerRings[lastL][i][0], layerRings[lastL][i][1]);
+    hOffset = n;
+    for (let h = 0; h < holes.length; h++) {
+      for (let i = 0; i < holes[h].length; i++) {
+        topCoords.push(layerRings[lastL][hOffset + i][0], layerRings[lastL][hOffset + i][1]);
+      }
+      hOffset += holes[h].length;
+    }
+    const topTris = earcut(topCoords, holeIndices, 2);
+    const zTop = layerRings[lastL][0][2];
+    for (let i = 0; i < topTris.length; i += 3) {
+      const i0 = topTris[i], i1 = topTris[i + 1], i2 = topTris[i + 2];
+      positions.push(
+        layerRings[lastL][i0][0], layerRings[lastL][i0][1], zTop,
+        layerRings[lastL][i1][0], layerRings[lastL][i1][1], zTop,
+        layerRings[lastL][i2][0], layerRings[lastL][i2][1], zTop
+      );
+    }
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    g.computeVertexNormals();
+    geoms.push(g);
+  }
+
+  return mergeGeometries(geoms);
+}
+
+export function extrudeBeveledPolygons(
+  polys: Polygons2D,
+  options: {
+    height: number;
+    zOffset?: number;
+    bevelSize?: number;
+    bevelThickness?: number;
+    bevelSegments?: number;
+    inset?: boolean;
+    filletTop?: boolean;
+    filletBottom?: boolean;
+  }
+): THREE.BufferGeometry {
+  const {
+    height,
+    zOffset = 0,
+    bevelSize = 0.8,
+    bevelSegments = 4,
+    filletTop = true,
+    filletBottom = true,
+  } = options;
+
+  return extrudeCADFilletedPrism(polys, {
+    height,
+    zOffset,
+    filletRadius: bevelSize,
+    filletTop,
+    filletBottom,
+    segments: bevelSegments,
+  });
+}
+
 export function extrudeProfileAlongX(profileYZ: Polygons2D, widthX: number): THREE.BufferGeometry {
   const geom = extrudePolygons(profileYZ, { height: widthX, zOffset: -widthX * 0.5 });
   const pos = geom.getAttribute('position') as THREE.BufferAttribute;

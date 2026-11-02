@@ -14,6 +14,7 @@ import {
   shapeGalleryToPolygons,
   svgToPolygons,
   extrudePolygons,
+  extrudeBeveledPolygons,
   mergeGeometries,
   transformGeometry,
 } from '@/engine/cad';
@@ -116,6 +117,24 @@ export const caixaComTampaModule: ProductModule = {
         max: 0.5,
         step: 0.02,
         helpText: '0.20 a 0.25mm garante encaixe suave sem cair e sem travar',
+        group: 'Dimensões e Encaixe',
+      },
+      {
+        name: 'ativar_filete',
+        label: 'Filete / Chanfro Suave nas Bordas',
+        type: 'boolean',
+        default: true,
+        group: 'Dimensões e Encaixe',
+      },
+      {
+        name: 'raio_filete',
+        label: 'Raio do Filete / Chanfro (mm)',
+        type: 'number',
+        default: 1.2,
+        min: 0.4,
+        max: 3.0,
+        step: 0.2,
+        visibleIf: 'ativar_filete=true',
         group: 'Dimensões e Encaixe',
       },
       {
@@ -230,6 +249,8 @@ export const caixaComTampaModule: ProductModule = {
     const parede = Number(params.parede || 2.4);
     const raioCanto = Number(params.raio_canto || 8);
     const folga = Number(params.folga_tampa ?? 0.22);
+    const ativarFilete = Boolean(params.ativar_filete ?? true);
+    const raioFilete = Number(params.raio_filete || 1.2);
     const posicaoTampa = String(params.posicao_tampa || 'ao_lado');
     const arteTampa = String(params.arte_tampa || 'texto_icone');
     const texto = String(params.texto || 'TREASURE').trim();
@@ -253,14 +274,24 @@ export const caixaComTampaModule: ProductModule = {
       );
     } else {
       const rSafe = Math.min(raioCanto, Math.min(largura, profundidade) * 0.45);
-      outer2D = roundedRectPolygon(largura, profundidade, rSafe, 0, 0, 16);
+      outer2D = roundedRectPolygon(largura, profundidade, rSafe, 0, 0, 24);
     }
 
     const innerCavity2D = offsetPolygons(outer2D, -parede, 'round');
     const boxWalls2D = subtractPolygons(outer2D, innerCavity2D);
     const floorH = Math.max(2.0, parede);
 
-    const boxFloorGeom = extrudePolygons(outer2D, { height: floorH, zOffset: 0 });
+    const boxFloorGeom = ativarFilete
+      ? extrudeBeveledPolygons(outer2D, {
+          height: floorH,
+          zOffset: 0,
+          bevelSize: Math.min(raioFilete, floorH * 0.4),
+          bevelSegments: 4,
+          filletBottom: true,
+          filletTop: false,
+        })
+      : extrudePolygons(outer2D, { height: floorH, zOffset: 0 });
+
     const boxWallGeom = extrudePolygons(boxWalls2D, {
       height: alturaCaixa - floorH,
       zOffset: floorH,
@@ -309,7 +340,6 @@ export const caixaComTampaModule: ProductModule = {
     }
 
     // 3. Construção da Tampa (placa superior de espessura `lidTopH` + colarinho interno de encaixe `lidLip2D`)
-    //    O colarinho entra dentro de `innerCavity2D` com folga `folga` de cada lado!
     const lidTopH = Math.max(2.2, parede);
     const lipOuter2D = offsetPolygons(innerCavity2D, -folga, 'round');
     const lipInner2D = offsetPolygons(lipOuter2D, -Math.max(1.4, parede * 0.75), 'round');
@@ -319,15 +349,8 @@ export const caixaComTampaModule: ProductModule = {
     let detalheGeom = new THREE.BufferGeometry();
 
     if (posicaoTampa === 'ao_lado') {
-      // Ao lado na mesa: a tampa fica com a face superior apoiada em Z=0 (ou com o topo para cima e colarinho para cima?
-      // Se o topo da tampa tiver baixo-relevo ou for liso, imprimir com a face externa em Z=0 e colarinho subindo para +Z
-      // dispensa 100% suportes! Se for alto-relevo, colocamos a tampa com o colarinho em Z=0..alturaAba e topo acima!)
       if (modoRelevo === 'baixo_relevo' && art2D.length > 0) {
         const cavDepth = 0.8;
-        // Face externa da tampa em Z = lidTopH (para visualização direta no preview) e colarinho abaixo?
-        // Para ficar 100% intuitivo no preview e fatiador: base da tampa em Z=0..lidTopH, colarinho subindo em Z=lidTopH..lidTopH+alturaAba,
-        // OU tampa com topo para cima e entalhe visível no preview!
-        // Vamos construir a tampa com a arte voltada para cima (+Z) no preview para que o usuário veja a arte claramente:
         const collarGeom = extrudePolygons(lidLipRing2D, {
           height: alturaAba,
           zOffset: 0,
@@ -337,10 +360,19 @@ export const caixaComTampaModule: ProductModule = {
           zOffset: alturaAba,
         });
         const carvedTop2D = subtractPolygons(outer2D, art2D);
-        const carvedTopGeom = extrudePolygons(carvedTop2D, {
-          height: cavDepth,
-          zOffset: alturaAba + lidTopH - cavDepth,
-        });
+        const carvedTopGeom = ativarFilete
+          ? extrudeBeveledPolygons(carvedTop2D, {
+              height: cavDepth,
+              zOffset: alturaAba + lidTopH - cavDepth,
+              bevelSize: Math.min(raioFilete, cavDepth * 0.45),
+              bevelSegments: 4,
+              filletBottom: false,
+              filletTop: true,
+            })
+          : extrudePolygons(carvedTop2D, {
+              height: cavDepth,
+              zOffset: alturaAba + lidTopH - cavDepth,
+            });
         tampaGeom = mergeGeometries([collarGeom, solidPlateGeom, carvedTopGeom]);
         detalheGeom = extrudePolygons(art2D, {
           height: 0.35,
@@ -351,10 +383,19 @@ export const caixaComTampaModule: ProductModule = {
           height: alturaAba,
           zOffset: 0,
         });
-        const topPlateGeom = extrudePolygons(outer2D, {
-          height: lidTopH,
-          zOffset: alturaAba,
-        });
+        const topPlateGeom = ativarFilete
+          ? extrudeBeveledPolygons(outer2D, {
+              height: lidTopH,
+              zOffset: alturaAba,
+              bevelSize: Math.min(raioFilete, lidTopH * 0.4),
+              bevelSegments: 4,
+              filletBottom: false,
+              filletTop: true,
+            })
+          : extrudePolygons(outer2D, {
+              height: lidTopH,
+              zOffset: alturaAba,
+            });
         tampaGeom = mergeGeometries([collarGeom, topPlateGeom]);
         if (art2D.length > 0) {
           detalheGeom = extrudePolygons(art2D, {
@@ -372,7 +413,7 @@ export const caixaComTampaModule: ProductModule = {
         detalheGeom = transformGeometry(detalheGeom, { translate: [shiftX, 0, 0] });
       }
     } else {
-      // Tampa encaixada sobre a caixa (colarinho descendo para dentro da caixa em Z = alturaCaixa - alturaAba .. alturaCaixa)
+      // Tampa encaixada sobre a caixa
       const collarGeom = extrudePolygons(lidLipRing2D, {
         height: alturaAba,
         zOffset: alturaCaixa - alturaAba,
@@ -385,20 +426,38 @@ export const caixaComTampaModule: ProductModule = {
           zOffset: alturaCaixa,
         });
         const carvedTop2D = subtractPolygons(outer2D, art2D);
-        const carvedTopGeom = extrudePolygons(carvedTop2D, {
-          height: cavDepth,
-          zOffset: alturaCaixa + lidTopH - cavDepth,
-        });
+        const carvedTopGeom = ativarFilete
+          ? extrudeBeveledPolygons(carvedTop2D, {
+              height: cavDepth,
+              zOffset: alturaCaixa + lidTopH - cavDepth,
+              bevelSize: Math.min(raioFilete, cavDepth * 0.45),
+              bevelSegments: 4,
+              filletBottom: false,
+              filletTop: true,
+            })
+          : extrudePolygons(carvedTop2D, {
+              height: cavDepth,
+              zOffset: alturaCaixa + lidTopH - cavDepth,
+            });
         tampaGeom = mergeGeometries([collarGeom, solidPlateGeom, carvedTopGeom]);
         detalheGeom = extrudePolygons(art2D, {
           height: 0.35,
           zOffset: alturaCaixa + lidTopH - cavDepth,
         });
       } else {
-        const topPlateGeom = extrudePolygons(outer2D, {
-          height: lidTopH,
-          zOffset: alturaCaixa,
-        });
+        const topPlateGeom = ativarFilete
+          ? extrudeBeveledPolygons(outer2D, {
+              height: lidTopH,
+              zOffset: alturaCaixa,
+              bevelSize: Math.min(raioFilete, lidTopH * 0.4),
+              bevelSegments: 4,
+              filletBottom: false,
+              filletTop: true,
+            })
+          : extrudePolygons(outer2D, {
+              height: lidTopH,
+              zOffset: alturaCaixa,
+            });
         tampaGeom = mergeGeometries([collarGeom, topPlateGeom]);
         if (art2D.length > 0) {
           detalheGeom = extrudePolygons(art2D, {
@@ -418,7 +477,7 @@ export const caixaComTampaModule: ProductModule = {
       },
       {
         name: 'tampa',
-        label: 'Tampa de Encaixe',
+        label: 'Tampa',
         geometry: tampaGeom,
         color: corCaixa,
       },
@@ -427,29 +486,39 @@ export const caixaComTampaModule: ProductModule = {
     if (detalheGeom.getAttribute('position')?.count > 0) {
       parts.push({
         name: 'detalhe',
-        label: modoRelevo === 'baixo_relevo' ? 'Entalhe / Infill na Tampa' : 'Arte em Relevo na Tampa',
+        label: modoRelevo === 'baixo_relevo' ? 'Entalhe na Tampa' : 'Relevo da Tampa',
         geometry: detalheGeom,
         color: corDetalhe,
       });
     }
 
-    const bFinal = getBounds2D(outer2D);
-
     return {
       parts,
       fichaTecnica: {
-        title: 'Medidas da Caixa com Tampa',
+        title: 'Especificações da Caixa',
         items: [
           {
-            label: 'Dimensão Externa Fechada',
-            value: `${bFinal.width.toFixed(1)} × ${bFinal.height.toFixed(1)} × ${(alturaCaixa + lidTopH).toFixed(1)} mm`,
+            label: 'Formato',
+            value:
+              formato === 'redonda'
+                ? 'Cilíndrico / Redondo'
+                : formato === 'hexagonal'
+                ? 'Hexagonal'
+                : 'Retangular',
           },
           {
-            label: 'Espaço Útil Interno',
-            value: `${innerBounds.width.toFixed(1)} × ${innerBounds.height.toFixed(1)} × ${(alturaCaixa - floorH - alturaAba).toFixed(1)} mm`,
+            label: 'Dimensões Externas',
+            value: `${largura.toFixed(0)} × ${profundidade.toFixed(0)} × ${alturaCaixa.toFixed(0)} mm`,
           },
-          { label: 'Folga Calibrada da Tampa', value: `${folga.toFixed(2)} mm` },
-          { label: 'Espessura de Parede', value: `${parede.toFixed(1)} mm` },
+          {
+            label: 'Cavidade Útil Interna',
+            value: `${(largura - parede * 2).toFixed(1)} × ${(profundidade - parede * 2).toFixed(1)} × ${(alturaCaixa - floorH).toFixed(1)} mm`,
+          },
+          {
+            label: 'Acabamento das Bordas',
+            value: ativarFilete ? `Filete Suave (${raioFilete.toFixed(1)} mm)` : 'Borda Reta 90°',
+          },
+          { label: 'Folga da Tampa', value: `${folga.toFixed(2)} mm` },
         ],
       },
     };

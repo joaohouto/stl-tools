@@ -183,17 +183,17 @@ export default function FullCalculatorPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       {/* Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-slate-800/80">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800/80">
         <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/15 border border-brand-500/30 text-brand-300 text-xs font-semibold">
-            <Calculator className="w-3.5 h-3.5 text-brand-400" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/15 border border-brand-500/30 text-brand-600 dark:text-brand-300 text-xs font-semibold">
+            <Calculator className="w-3.5 h-3.5 text-brand-500 dark:text-brand-400" />
             <span>Precificação Profissional p/ Impressão 3D</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-100">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100">
             Calculadora de Custos & Preço de Venda 3D
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
-            Informe o peso e o tempo do seu fatiador ou envie um arquivo <code className="text-brand-400 font-mono">.STL</code>. Calcula energia, depreciação, reserva de falha, taxas de marketplaces e lotes em tempo real.
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-2xl">
+            Informe o peso e o tempo do seu fatiador ou envie um arquivo <code className="text-brand-600 dark:text-brand-400 font-mono">.STL</code>. Calcula energia, depreciação, reserva de falha, taxas de marketplaces e lotes em tempo real.
           </p>
         </div>
 
@@ -201,7 +201,7 @@ export default function FullCalculatorPage() {
           <button
             type="button"
             onClick={handleResetDefaults}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-800 hover:bg-surface-700 border border-slate-700/80 text-xs font-medium text-slate-300 transition"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-surface-800 hover:bg-slate-100 dark:hover:bg-surface-700 border border-slate-200 dark:border-slate-700/80 text-xs font-medium text-slate-700 dark:text-slate-300 transition"
           >
             <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
             <span>Restaurar Padrão</span>
@@ -209,7 +209,7 @@ export default function FullCalculatorPage() {
           <button
             type="button"
             onClick={handleCopyQuote}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-xs font-bold transition shadow-lg shadow-brand-500/15"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-slate-950 text-xs font-bold transition shadow-md shadow-brand-500/15"
           >
             {copiedQuote ? (
               <>

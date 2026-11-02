@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { useTheme } from '@/components/theme/ThemeProvider';
 import { GeneratedPartMesh, MeshMetrics } from '@/engine/types';
 import {
   DownloadSimpleIcon as Download,
@@ -34,6 +35,7 @@ export default function ModelViewport({
   metrics,
   isGenerating,
 }: ModelViewportProps) {
+  const { resolvedTheme } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<{
     scene: THREE.Scene;
@@ -41,6 +43,10 @@ export default function ModelViewport({
     renderer: THREE.WebGLRenderer;
     controls: OrbitControls;
     partsGroup: THREE.Group;
+    bedPlateMat: THREE.MeshStandardMaterial;
+    majorGrid: THREE.GridHelper;
+    ambientLight: THREE.AmbientLight;
+    keyLight: THREE.DirectionalLight;
   } | null>(null);
 
   // Initialize Three.js Scene, Camera, Renderer, Lights & 256x256mm Print Bed Grid once
@@ -74,11 +80,13 @@ export default function ModelViewport({
     controls.maxDistance = 600;
     controls.target.set(0, 18, 0);
 
+    const isDark = resolvedTheme === 'dark';
+
     // Studio Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+    const ambientLight = new THREE.AmbientLight(0xffffff, isDark ? 0.85 : 1.05);
     scene.add(ambientLight);
 
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.45);
+    const keyLight = new THREE.DirectionalLight(0xffffff, isDark ? 1.45 : 1.3);
     keyLight.position.set(120, 200, 140);
     keyLight.castShadow = true;
     keyLight.shadow.mapSize.width = 2048;
@@ -103,7 +111,7 @@ export default function ModelViewport({
     // 256x256mm Print Bed Plate & Grid (Bambu Lab style)
     const bedPlateGeom = new THREE.PlaneGeometry(256, 256);
     const bedPlateMat = new THREE.MeshStandardMaterial({
-      color: 0x0f1623,
+      color: isDark ? 0x0f1623 : 0xe2e8f0,
       roughness: 0.85,
       metalness: 0.1,
     });
@@ -113,7 +121,7 @@ export default function ModelViewport({
     bedPlate.receiveShadow = true;
     scene.add(bedPlate);
 
-    const majorGrid = new THREE.GridHelper(256, 25, 0xf97316, 0x1e293b);
+    let majorGrid = new THREE.GridHelper(256, 25, 0xf97316, isDark ? 0x1e293b : 0xcbd5e1);
     majorGrid.position.y = 0;
     scene.add(majorGrid);
 
@@ -122,7 +130,17 @@ export default function ModelViewport({
     partsGroup.rotation.x = -Math.PI / 2;
     scene.add(partsGroup);
 
-    sceneRef.current = { scene, camera, renderer, controls, partsGroup };
+    sceneRef.current = {
+      scene,
+      camera,
+      renderer,
+      controls,
+      partsGroup,
+      bedPlateMat,
+      majorGrid,
+      ambientLight,
+      keyLight,
+    };
 
     let frameId = 0;
     const animate = () => {
@@ -152,6 +170,25 @@ export default function ModelViewport({
       sceneRef.current = null;
     };
   }, []);
+
+  // Dynamically adapt 3D scene elements when Light / Dark theme changes
+  useEffect(() => {
+    const ctx = sceneRef.current;
+    if (!ctx) return;
+    const isDark = resolvedTheme === 'dark';
+
+    ctx.bedPlateMat.color.setHex(isDark ? 0x0f1623 : 0xe2e8f0);
+    ctx.ambientLight.intensity = isDark ? 0.85 : 1.05;
+    ctx.keyLight.intensity = isDark ? 1.45 : 1.3;
+
+    // Refresh grid helper colors
+    ctx.scene.remove(ctx.majorGrid);
+    ctx.majorGrid.geometry.dispose();
+    const newGrid = new THREE.GridHelper(256, 25, 0xf97316, isDark ? 0x1e293b : 0xcbd5e1);
+    newGrid.position.y = 0;
+    ctx.scene.add(newGrid);
+    ctx.majorGrid = newGrid;
+  }, [resolvedTheme]);
 
   // Update 3D meshes whenever `parts` change
   useEffect(() => {
@@ -233,34 +270,34 @@ export default function ModelViewport({
   const { x, y, z } = metrics.boundingBoxMm;
 
   return (
-    <div className="flex flex-col h-full rounded-2xl border border-slate-800 bg-surface-800 overflow-hidden shadow-2xl">
+    <div className="flex flex-col h-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-surface-800 overflow-hidden shadow-sm dark:shadow-2xl">
       {/* Top Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-800/80 bg-surface-900/60">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-surface-900">
         <div className="flex items-center gap-2.5">
           <span
             className={`inline-block w-2.5 h-2.5 rounded-full ${
               isGenerating ? 'bg-amber-400 animate-pulse' : 'bg-brand-500'
             }`}
           />
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
             {isGenerating ? 'Gerando Geometria 3D...' : 'Preview 3D Interativo (Mesa 256×256mm)'}
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
-          <span className="flex items-center gap-1 bg-slate-800/90 px-2.5 py-1 rounded-md border border-slate-700/70">
-            <Maximize2 className="w-3.5 h-3.5 text-brand-400" />
+        <div className="flex items-center gap-2 text-xs font-mono text-slate-600 dark:text-slate-400">
+          <span className="flex items-center gap-1 bg-white dark:bg-surface-800 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700/70 text-slate-700 dark:text-slate-300">
+            <Maximize2 className="w-3.5 h-3.5 text-brand-500 dark:text-brand-400" />
             {x.toFixed(1)} × {y.toFixed(1)} × {z.toFixed(1)} mm
           </span>
-          <span className="hidden sm:inline-flex items-center gap-1 bg-slate-800/90 px-2.5 py-1 rounded-md border border-slate-700/70">
-            <Box className="w-3.5 h-3.5 text-brand-400" />
+          <span className="hidden sm:inline-flex items-center gap-1 bg-white dark:bg-surface-800 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700/70 text-slate-700 dark:text-slate-300">
+            <Box className="w-3.5 h-3.5 text-brand-500 dark:text-brand-400" />
             {metrics.volumeCm3.toFixed(1)} cm³
           </span>
           <button
             type="button"
             onClick={handleResetCamera}
             title="Centralizar Câmera 3D"
-            className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+            className="p-1 rounded-md bg-white dark:bg-surface-800 hover:bg-slate-100 dark:hover:bg-surface-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
@@ -268,7 +305,7 @@ export default function ModelViewport({
       </div>
 
       {/* 3D WebGL Viewport Container */}
-      <div className="relative flex-1 min-h-[380px] w-full bg-gradient-to-b from-[#0d121b] to-[#151d2a]">
+      <div className="relative flex-1 min-h-[380px] w-full bg-gradient-to-b from-slate-100 via-slate-200/50 to-slate-200 dark:from-[#0d121b] dark:to-[#151d2a] transition-colors">
         <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
         {/* Legend of Colored Parts */}
@@ -276,10 +313,10 @@ export default function ModelViewport({
           {parts.map((p) => (
             <div
               key={p.name}
-              className="flex items-center gap-1.5 bg-slate-900/85 backdrop-blur-md border border-slate-700/80 px-2.5 py-1 rounded-full text-xs text-slate-200"
+              className="flex items-center gap-1.5 bg-white/90 dark:bg-slate-900/85 backdrop-blur-md border border-slate-200 dark:border-slate-700/80 px-2.5 py-1 rounded-full text-xs text-slate-800 dark:text-slate-200 shadow-sm"
             >
               <span
-                className="w-3 h-3 rounded-full border border-white/20"
+                className="w-3 h-3 rounded-full border border-black/10 dark:border-white/20"
                 style={{ backgroundColor: p.color }}
               />
               <span>{p.label}</span>
@@ -289,15 +326,15 @@ export default function ModelViewport({
       </div>
 
       {/* Download Action Footer */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 bg-surface-900/90 border-t border-slate-800">
-        <div className="text-xs text-slate-400">
-          <span className="text-slate-200 font-medium">Pronto para Fatiar:</span> Malha 100% fechada ({metrics.trianglesCount.toLocaleString('pt-BR')} triângulos)
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 bg-slate-50 dark:bg-surface-900 border-t border-slate-200 dark:border-slate-800">
+        <div className="text-xs text-slate-600 dark:text-slate-400">
+          <span className="text-slate-900 dark:text-slate-200 font-medium">Pronto para Fatiar:</span> Malha 100% fechada ({metrics.trianglesCount.toLocaleString('pt-BR')} triângulos)
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleDownloadSTL}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-brand-500 hover:bg-brand-400 text-slate-950 transition shadow-lg shadow-brand-500/20"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-brand-500 hover:bg-brand-400 text-slate-950 transition shadow-md shadow-brand-500/20"
           >
             <Download className="w-4 h-4" />
             Baixar .STL Único
@@ -307,19 +344,19 @@ export default function ModelViewport({
             <>
               <button
                 onClick={handleDownloadZIP}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 transition"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-white dark:bg-surface-800 hover:bg-slate-100 dark:hover:bg-surface-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 transition"
                 title="Baixa um arquivo .STL para cada cor + guia de impressão"
               >
-                <Layers className="w-4 h-4 text-brand-400" />
+                <Layers className="w-4 h-4 text-brand-500 dark:text-brand-400" />
                 Baixar .ZIP (Peças p/ Cor)
               </button>
 
               <button
                 onClick={handleDownload3MF}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 transition"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-white dark:bg-surface-800 hover:bg-slate-100 dark:hover:bg-surface-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 transition"
                 title="Arquivo .3MF com múltiplos objetos para Bambu Studio / OrcaSlicer"
               >
-                <Sparkles className="w-4 h-4 text-amber-400" />
+                <Sparkles className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                 Baixar .3MF (Bambu/Orca)
               </button>
             </>

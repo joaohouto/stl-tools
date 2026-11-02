@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
 
 export const viewport: Viewport = {
   themeColor: "#f97316",
-  colorScheme: "dark",
+  colorScheme: "dark light",
   width: "device-width",
   initialScale: 1,
 };
@@ -78,6 +79,8 @@ export const metadata: Metadata = {
   },
 };
 
+const themeAntiFlickerScript = `(function(){try{var t=localStorage.getItem('stltools_theme');var s=window.matchMedia('(prefers-color-scheme: dark)').matches;if(t==='dark'||((!t||t==='system')&&s)){document.documentElement.classList.add('dark');document.documentElement.classList.remove('light');document.documentElement.style.colorScheme='dark';}else{document.documentElement.classList.remove('dark');document.documentElement.classList.add('light');document.documentElement.style.colorScheme='light';}}catch(e){}})();`;
+
 export default function RootLayout({
   children,
 }: {
@@ -111,14 +114,21 @@ export default function RootLayout({
   };
 
   return (
-    <html lang="pt-BR" className="dark">
-      <body className="min-h-screen flex flex-col bg-surface-900 text-slate-100 antialiased">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{ __html: themeAntiFlickerScript }}
+        />
+      </head>
+      <body className="min-h-screen flex flex-col bg-slate-100 dark:bg-surface-900 text-slate-900 dark:text-slate-100 antialiased">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <Navbar />
-        <main className="flex-1">{children}</main>
+        <ThemeProvider>
+          <Navbar />
+          <main className="flex-1">{children}</main>
+        </ThemeProvider>
       </body>
     </html>
   );

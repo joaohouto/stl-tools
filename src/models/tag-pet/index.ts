@@ -63,6 +63,26 @@ export const tagPetModule: ProductModule = {
         group: 'Formato e Texto',
       },
       {
+        name: 'altura_fonte',
+        label: 'Altura da Fonte do Nome (mm)',
+        type: 'number',
+        default: 8.0,
+        min: 4.0,
+        max: 18.0,
+        step: 0.5,
+        group: 'Formato e Texto',
+      },
+      {
+        name: 'altura_fonte_tel',
+        label: 'Altura da Fonte do Telefone (mm)',
+        type: 'number',
+        default: 4.5,
+        min: 2.5,
+        max: 10.0,
+        step: 0.5,
+        group: 'Formato e Texto',
+      },
+      {
         name: 'modo_relevo',
         label: 'Modo do Relevo',
         type: 'enum',
@@ -154,16 +174,19 @@ export const tagPetModule: ProductModule = {
 
     const textPolysList: Polygons2D[] = [];
     const hasPhone = telefone.trim().length > 0;
-    const nameH = formato === 'osso' ? tamanho * 0.14 : tamanho * 0.18;
+    const defaultNameH = formato === 'osso' ? tamanho * 0.16 : tamanho * 0.19;
+    const nameH = Number(params.altura_fonte || defaultNameH);
+    const phoneH = Number(params.altura_fonte_tel || Math.max(3.0, nameH * 0.6));
 
     if (nomePet.trim()) {
       const nPolys = await textToPolygons(nomePet, fonte, nameH);
-      const yPos = hasPhone ? nameH * 0.42 : 0;
+      const yPos = hasPhone ? phoneH * 0.5 + 1.2 : 0;
       textPolysList.push(translatePolygons(nPolys, 0, yPos));
     }
     if (hasPhone) {
-      const pPolys = await textToPolygons(telefone, 'Bebas Neue', nameH * 0.62);
-      textPolysList.push(translatePolygons(pPolys, 0, -nameH * 0.55));
+      const pPolys = await textToPolygons(telefone, 'Bebas Neue', phoneH);
+      const yPos = hasPhone && nomePet.trim() ? -(nameH * 0.5 + 0.8) : 0;
+      textPolysList.push(translatePolygons(pPolys, 0, yPos));
     }
 
     const combinedText2D = unionPolygons(...textPolysList);

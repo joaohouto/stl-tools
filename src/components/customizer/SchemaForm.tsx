@@ -98,19 +98,21 @@ export default function SchemaForm({
     if (!file) return;
     setVectorizeError(null);
 
-    if (file.name.toLowerCase().endsWith('.svg') || file.type === 'image/svg+xml') {
+    // Se já for SVG direto, lê o texto em UTF-8
+    if (file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')) {
       const text = await file.text();
       onChange(paramName, text);
       return;
     }
 
-    // PNG / JPG / WebP -> Vectorize automatically into SVG!
+    // Se for imagem raster (PNG, JPG, WebP), roda o motor de vetorização
+    setVectorizingField(paramName);
     try {
-      setVectorizingField(paramName);
-      const svg = await imageFileToSvg(file);
-      onChange(paramName, svg);
+      const svgOutput = await imageFileToSvg(file);
+      onChange(paramName, svgOutput);
     } catch (err: any) {
-      setVectorizeError(err?.message || 'Erro ao vetorizar imagem.');
+      console.error('[Vectorize Error]', err);
+      setVectorizeError(err?.message || 'Falha ao vetorizar imagem.');
     } finally {
       setVectorizingField(null);
     }
@@ -119,17 +121,17 @@ export default function SchemaForm({
   return (
     <div className="flex flex-col gap-5">
       {/* Header with Reset button */}
-      <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-surface-800 border border-slate-800">
+      <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-white dark:bg-surface-800 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-2">
-          <Sliders className="w-4 h-4 text-brand-400" />
-          <span className="text-sm font-semibold text-slate-100">
+          <Sliders className="w-4 h-4 text-brand-500 dark:text-brand-400" />
+          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             Personalizar Peça
           </span>
         </div>
         <button
           type="button"
           onClick={onReset}
-          className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand-400 transition"
+          className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-brand-400 transition"
         >
           <RotateCcw className="w-3.5 h-3.5" />
           Restaurar Padrão
@@ -138,9 +140,9 @@ export default function SchemaForm({
 
       {/* Filament Colors Section */}
       {colorParams.length > 0 && (
-        <div className="p-4 rounded-xl bg-surface-800 border border-slate-800 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-            <Palette className="w-3.5 h-3.5 text-brand-400" />
+        <div className="p-4 rounded-xl bg-white dark:bg-surface-800 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+            <Palette className="w-3.5 h-3.5 text-brand-500 dark:text-brand-400" />
             Cores das Peças (Preview & 3MF)
           </div>
 
@@ -150,10 +152,10 @@ export default function SchemaForm({
               return (
                 <div
                   key={cp.name}
-                  className="p-2.5 rounded-lg bg-surface-900/80 border border-slate-800/80 space-y-2"
+                  className="p-2.5 rounded-lg bg-slate-100 dark:bg-surface-900 border border-slate-200 dark:border-slate-800 space-y-2"
                 >
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-slate-300">
+                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
                       {cp.label}
                     </label>
                     <input
@@ -171,8 +173,8 @@ export default function SchemaForm({
                         onClick={() => onChange(cp.name, swatch)}
                         className={`w-4 h-4 rounded-full border transition ${
                           currentColor.toLowerCase() === swatch.toLowerCase()
-                            ? 'ring-2 ring-brand-400 scale-110 border-white'
-                            : 'border-white/20 opacity-80 hover:opacity-100'
+                            ? 'ring-2 ring-brand-500 scale-110 border-slate-900 dark:border-white'
+                            : 'border-slate-300 dark:border-white/20 opacity-80 hover:opacity-100'
                         }`}
                         style={{ backgroundColor: swatch }}
                       />
@@ -189,9 +191,9 @@ export default function SchemaForm({
       {Array.from(groups.entries()).map(([groupName, params]) => (
         <div
           key={groupName}
-          className="p-4 rounded-xl bg-surface-800 border border-slate-800 space-y-4"
+          className="p-4 rounded-xl bg-white dark:bg-surface-800 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4"
         >
-          <h3 className="text-xs font-bold uppercase tracking-wider text-brand-400 border-b border-slate-800 pb-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400 border-b border-slate-200 dark:border-slate-800 pb-2">
             {groupName}
           </h3>
 
@@ -203,9 +205,9 @@ export default function SchemaForm({
                 return (
                   <div key={p.name} className="space-y-1.5">
                     <div className="flex justify-between text-xs">
-                      <label className="font-medium text-slate-200">{p.label}</label>
+                      <label className="font-medium text-slate-700 dark:text-slate-200">{p.label}</label>
                       {p.maxLength && (
-                        <span className="text-slate-500 font-mono">
+                        <span className="text-slate-400 dark:text-slate-500 font-mono">
                           {String(val).length}/{p.maxLength}
                         </span>
                       )}
@@ -217,7 +219,7 @@ export default function SchemaForm({
                         maxLength={p.maxLength}
                         placeholder={p.placeholder || 'Digite 1 ou 2 linhas...'}
                         onChange={(e) => onChange(p.name, e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-surface-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-brand-500 resize-y"
+                        className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-surface-900 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500 resize-y"
                       />
                     ) : (
                       <input
@@ -226,7 +228,7 @@ export default function SchemaForm({
                         maxLength={p.maxLength}
                         placeholder={p.placeholder}
                         onChange={(e) => onChange(p.name, e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-surface-900 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-brand-500"
+                        className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-surface-900 border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-brand-500"
                       />
                     )}
                   </div>
@@ -237,7 +239,7 @@ export default function SchemaForm({
                 return (
                   <div key={p.name} className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
-                      <label className="font-medium text-slate-200">{p.label}</label>
+                      <label className="font-medium text-slate-700 dark:text-slate-200">{p.label}</label>
                       <div className="flex items-center gap-1">
                         <NumericInput
                           value={Number(val)}
@@ -246,7 +248,7 @@ export default function SchemaForm({
                           step={p.step ?? 1}
                           fallbackValue={Number(p.default ?? p.min ?? 0)}
                           onChange={(v) => onChange(p.name, v)}
-                          className="w-16 px-2 py-0.5 text-right font-mono text-xs rounded bg-surface-900 border border-slate-700 text-brand-400 focus:outline-none focus:border-brand-500"
+                          className="w-16 px-2 py-0.5 text-right font-mono text-xs rounded bg-slate-50 dark:bg-surface-900 border border-slate-300 dark:border-slate-700 text-brand-600 dark:text-brand-400 focus:outline-none focus:border-brand-500"
                         />
                       </div>
                     </div>
@@ -257,7 +259,7 @@ export default function SchemaForm({
                       step={p.step ?? 1}
                       value={Number(val)}
                       onChange={(e) => onChange(p.name, Number(e.target.value))}
-                      className="w-full accent-brand-500 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
+                      className="w-full accent-brand-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
                     />
                   </div>
                 );
@@ -267,9 +269,9 @@ export default function SchemaForm({
                 return (
                   <label
                     key={p.name}
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-surface-900/60 border border-slate-800 cursor-pointer hover:border-slate-700 transition"
+                    className="flex items-center justify-between p-2.5 rounded-lg bg-slate-100 dark:bg-surface-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition"
                   >
-                    <span className="text-xs font-medium text-slate-200">
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
                       {p.label}
                     </span>
                     <input
@@ -329,12 +331,12 @@ export default function SchemaForm({
               if (p.type === 'svg') {
                 return (
                   <div key={p.name} className="space-y-2">
-                    <label className="block text-xs font-medium text-slate-200">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-200">
                       {p.label}
                     </label>
-                    <label className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-700 hover:border-brand-500 bg-surface-900/60 cursor-pointer transition text-center">
-                      <Upload className="w-5 h-5 text-brand-400 mb-1" />
-                      <span className="text-xs font-medium text-slate-200">
+                    <label className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-brand-500 bg-slate-100 dark:bg-surface-900 cursor-pointer transition text-center">
+                      <Upload className="w-5 h-5 text-brand-500 dark:text-brand-400 mb-1" />
+                      <span className="text-xs font-medium text-slate-800 dark:text-slate-200">
                         {vectorizingField === p.name
                           ? 'Vetorizando imagem...'
                           : 'Clique para enviar .SVG, .PNG ou .JPG'}
@@ -352,7 +354,7 @@ export default function SchemaForm({
                       />
                     </label>
                     {vectorizeError && (
-                      <p className="text-xs text-rose-400">{vectorizeError}</p>
+                      <p className="text-xs text-rose-500 dark:text-rose-400">{vectorizeError}</p>
                     )}
                   </div>
                 );
